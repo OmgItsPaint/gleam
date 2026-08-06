@@ -62,6 +62,13 @@ async function run() {
     assert.equal((await fsp.readdir(engine.settingsBackupRoot(secondProfile.id))).length, 1);
     const world = path.join(engine.instanceDirectory('26.2', profile.id), 'saves', 'Friends World');
     await fsp.mkdir(world, { recursive: true }); await fsp.writeFile(path.join(world, 'level.dat'), 'fixture');
+    const listedWorlds = await engine.listWorlds(profile.id); assert.equal(listedWorlds.length, 1); assert.equal(listedWorlds[0].name, 'Friends World'); assert.equal(listedWorlds[0].valid, true);
+    const duplicatedWorld = await engine.duplicateWorld(profile.id, 'Friends World'); assert.equal(duplicatedWorld.name, 'Friends World Copy');
+    const renamedWorld = await engine.renameWorld(profile.id, duplicatedWorld.name, 'QA Copy'); assert.equal(renamedWorld.name, 'QA Copy'); assert.equal(fs.existsSync(path.join(engine.instanceDirectory('26.2', profile.id), 'saves', 'QA Copy', 'level.dat')), true);
+    const copiedWorld = await engine.copyWorld(profile.id, 'Friends World', secondProfile.id); assert.equal(copiedWorld.versionChanged, false); assert.equal(fs.existsSync(path.join(engine.instanceDirectory('26.2', secondProfile.id), 'saves', 'Friends World', 'level.dat')), true);
+    const exportRoot = path.join(temporary, 'world-export'); const exportedWorld = await engine.exportWorld(profile.id, 'Friends World', exportRoot); assert.equal(fs.existsSync(path.join(exportedWorld.destination, 'level.dat')), true);
+    const importedWorld = await engine.importWorld(secondProfile.id, exportedWorld.destination); assert.equal(importedWorld.name, 'Friends World (2)');
+    const deletedWorld = await engine.deleteWorld(profile.id, 'QA Copy'); assert.equal(fs.existsSync(deletedWorld.recoverableAt), true); await assert.rejects(() => engine.renameWorld(profile.id, 'Friends World', '../unsafe'), /valid world name/);
     const resourcePack = path.join(engine.instanceDirectory('26.2', profile.id), 'resourcepacks', 'Friends Pack', 'pack.mcmeta'); await fsp.mkdir(path.dirname(resourcePack), { recursive: true }); await fsp.writeFile(resourcePack, '{}');
     const transferred = await engine.createModProfile('Transferred', '26.2', profile.id, { mods: false, settings: true, resourcePacks: true, worlds: true, preset: 'vanilla' });
     assert.equal(transferred.preset, 'vanilla'); assert.equal(transferred.mods.length, 0); assert.equal(await fsp.readFile(path.join(engine.instanceDirectory('26.2', transferred.id), 'options.txt'), 'utf8'), 'gamma:1.0\nrenderDistance:12\n'); assert.equal(fs.existsSync(path.join(engine.instanceDirectory('26.2', transferred.id), 'resourcepacks', 'Friends Pack', 'pack.mcmeta')), true); assert.equal(fs.existsSync(path.join(engine.instanceDirectory('26.2', transferred.id), 'saves', 'Friends World', 'level.dat')), true);
@@ -83,10 +90,11 @@ async function run() {
     await assert.rejects(() => engine.updateAllMods(profile.gameVersion, profile.id), /Updates were rolled back/); assert.equal(restoredBackup, 'rollback-fixture'); engine.planModUpdates = originalPlan; engine.backupModProfile = originalBackup; engine.installModrinthMod = originalInstall; engine.restoreProfileBackup = originalRestore;
 
     const servers = new IcecreamServerEngine(temporary, async version => ({ java: 'java', major: policy.fallbackJavaMajor(version) }));
-    const server = await servers.create('Friends', '26.2', 25565, { acceptEula: true, whitelist: true, hostName: 'HostFriend' });
+    const server = await servers.create('Friends', '26.2', 25565, { acceptEula: true, whitelist: true, hostName: 'HostFriend', template: 'creative' });
     assert.equal(server.version, '26.2');
     assert.equal(server.memoryMb, 4096);
-    const originalProperties = await servers.getProperties(server.id); assert.equal(originalProperties.maxPlayers, 12); const savedProperties = await servers.setProperties(server.id, { motd: 'Friends only', maxPlayers: 6, gamemode: 'creative', difficulty: 'normal', viewDistance: 14, simulationDistance: 10, pvp: false, commandBlocks: true }); assert.equal(savedProperties.motd, 'Friends only'); assert.equal(savedProperties.maxPlayers, 6); assert.equal(savedProperties.gamemode, 'creative'); assert.equal(savedProperties.pvp, false);
+    assert.equal(server.template, 'creative');
+    const originalProperties = await servers.getProperties(server.id); assert.equal(originalProperties.maxPlayers, 12); assert.equal(originalProperties.gamemode, 'creative'); assert.equal(originalProperties.difficulty, 'peaceful'); const savedProperties = await servers.setProperties(server.id, { motd: 'Friends only', maxPlayers: 6, gamemode: 'creative', difficulty: 'normal', viewDistance: 14, simulationDistance: 10, pvp: false, commandBlocks: true }); assert.equal(savedProperties.motd, 'Friends only'); assert.equal(savedProperties.maxPlayers, 6); assert.equal(savedProperties.gamemode, 'creative'); assert.equal(savedProperties.pvp, false);
     assert.equal(fs.existsSync(path.join(servers.modsDir(server.id), 'README.txt')), true);
     assert.equal(fs.existsSync(servers.lockFile(server.id)), true);
     const fakeMinecraft = net.createServer(socket => socket.once('data', () => { const text = Buffer.from(JSON.stringify({ version: { name: 'Swirl QA', protocol: 999 }, players: { online: 1, max: 8 }, description: { text: 'test' } })); const body = Buffer.concat([servers.encodeVarInt(0), servers.encodeVarInt(text.length), text]); socket.end(Buffer.concat([servers.encodeVarInt(body.length), body])); }));
@@ -96,6 +104,7 @@ async function run() {
     assert.deepEqual((await servers.approvedPlayers(server.id)).map(item => [item.name, item.operator]), [['HostFriend', false], ['SecondFriend', true]]);
     await servers.setApprovedPlayer(server.id, 'SecondFriend', false, false);
     assert.deepEqual((await servers.approvedPlayers(server.id)).map(item => item.name), ['HostFriend']);
+    await assert.rejects(() => servers.playerAction(server.id, 'HostFriend', 'kick'), /Start the server/);
     const concurrent = await Promise.all(Array.from({ length: 8 }, (_, index) => servers.create(`Auto ${index}`, '26.2', '', { acceptEula: true })));
     assert.equal(new Set(concurrent.map(item => item.id)).size, 8, 'Concurrent server creates must not overwrite one another.');
     assert.equal(new Set(concurrent.map(item => item.port)).size, 8, 'Automatic ports must be unique.');

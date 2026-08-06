@@ -6,6 +6,12 @@ Swirl is a profile-isolated Fabric launcher for Minecraft Java Edition. It suppo
 
 The 1.1–1.7 foundation is delivered as one coordinated release: first-run setup, managed Java, isolated profile presets, selective profile transfers, signed lockfile sharing, client and server Modrinth management, LAN invites and diagnostics, transactional mod updates, server gameplay settings, backup browsing and restoration, retention limits, accessibility controls, signed launcher updates, rollback, and saveable support reports. Client and server Update All operations show the exact version plan first and restore their pre-update backup if any later step fails.
 
+## Swirl 1.9
+
+The 1.8 world manager lists the worlds inside each profile and can safely duplicate, rename, copy to another existing profile, import, export, or delete them. Swirl backs up the affected profile before every change, preserves the original during cross-profile copies, warns before copying between Minecraft versions, resolves duplicate names, and moves deleted worlds to Swirl Trash.
+
+The 1.9 friends and hosting update adds Friends, Performance, Creative, and Custom server templates; portable `.swirlinvite` files; and clearer host controls. Approved players can be promoted or demoted, removed, kicked, or banned from a running server. Existing signed invite verification, exact client-compatible mod synchronization, connection diagnostics, independent server folders, transactional updates, and backup restoration remain enforced. The 2.0 in-game milestone is intentionally not part of this release.
+
 ## Run
 
 1. Install Node.js 20 or newer.

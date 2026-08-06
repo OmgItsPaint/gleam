@@ -74,6 +74,7 @@ function createWindow() {
         ['play', "document.getElementById('open-library').click()"],
         ['profiles', "document.getElementById('open-profiles').click()"],
         ['profile-editor', "document.querySelector('.profile-card-actions .secondary-action')?.click()"],
+        ['world-manager', "document.getElementById('editor-worlds')?.click()"],
         ['profile-editor-actions', "document.querySelector('.profile-more summary')?.click()"],
         ['host', "document.getElementById('open-hosts').click()"],
         ['host-actions', "document.querySelector('.host-more summary')?.click(); document.querySelector('.shell').scrollTop = document.getElementById('server-list').offsetTop"],
@@ -179,6 +180,13 @@ ipcMain.handle('backup-mod-profile', async (_, id) => engine.backupModProfile(re
 ipcMain.handle('profile-backups', async (_, id) => engine.listProfileBackups(requireProfileId(id)));
 ipcMain.handle('restore-profile-backup', async (_, id, backupId = '') => engine.restoreProfileBackup(requireProfileId(id), String(backupId || '')));
 ipcMain.handle('delete-profile-backup', async (_, id, backupId) => engine.deleteProfileBackup(requireProfileId(id), String(backupId || '')));
+ipcMain.handle('profile-worlds', async (_, id) => engine.listWorlds(requireProfileId(id)));
+ipcMain.handle('copy-profile-world', async (_, sourceId, worldName, targetId, requestedName = '') => engine.copyWorld(requireProfileId(sourceId), String(worldName || ''), requireProfileId(targetId), String(requestedName || '')));
+ipcMain.handle('duplicate-profile-world', async (_, id, worldName) => engine.duplicateWorld(requireProfileId(id), String(worldName || '')));
+ipcMain.handle('rename-profile-world', async (_, id, worldName, requestedName) => engine.renameWorld(requireProfileId(id), String(worldName || ''), String(requestedName || '')));
+ipcMain.handle('delete-profile-world', async (_, id, worldName) => engine.deleteWorld(requireProfileId(id), String(worldName || '')));
+ipcMain.handle('export-profile-world', async (_, id, worldName) => { const result = await dialog.showOpenDialog(mainWindow, { title: 'Choose where to copy the world', properties: ['openDirectory', 'createDirectory'] }); if (result.canceled || !result.filePaths[0]) return { saved: false }; return { saved: true, ...(await engine.exportWorld(requireProfileId(id), String(worldName || ''), result.filePaths[0])) }; });
+ipcMain.handle('import-profile-world', async (_, id) => { const result = await dialog.showOpenDialog(mainWindow, { title: 'Choose a Minecraft world folder', properties: ['openDirectory'] }); if (result.canceled || !result.filePaths[0]) return { imported: false }; return { imported: true, ...(await engine.importWorld(requireProfileId(id), result.filePaths[0])) }; });
 ipcMain.handle('remove-mod', async (_, projectId, gameVersion, profileId) => engine.removeMod(String(projectId), requireVersion(gameVersion), requireProfileId(profileId)));
 ipcMain.handle('open-profile-folder', async (_, id) => { const profile = (await engine.getModProfiles()).find(item => item.id === requireProfileId(id)); if (!profile) throw new Error('That profile was not found.'); await engine.repairModProfile(profile.id); const error = await shell.openPath(engine.instanceDirectory(profile.gameVersion, profile.id)); if (error) throw new Error(error); return true; });
 ipcMain.handle('diagnostics', async () => engine.diagnostics());
@@ -193,7 +201,7 @@ ipcMain.handle('apply-launcher-update', async () => { const result = await updat
 ipcMain.handle('launcher-healthy', async () => updates.markHealthy());
 ipcMain.handle('fabric-loaders', async (_, gameVersion) => engine.getFabricLoaders(requireVersion(gameVersion)));
 ipcMain.handle('servers', async () => servers.list());
-ipcMain.handle('create-server', async (_, name, version, port, options = {}) => servers.create(name, requireVersion(version), port, { whitelist: options?.whitelist === true, acceptEula: options?.acceptEula === true, memoryMb: Number(options?.memoryMb), hostName: String(options?.hostName || '') }));
+ipcMain.handle('create-server', async (_, name, version, port, options = {}) => servers.create(name, requireVersion(version), port, { template: String(options?.template || 'friends'), whitelist: options?.whitelist === true, acceptEula: options?.acceptEula === true, memoryMb: Number(options?.memoryMb), hostName: String(options?.hostName || '') }));
 ipcMain.handle('start-server', async (_, id) => servers.start(requireProfileId(id)));
 ipcMain.handle('stop-server', async (_, id) => servers.stop(requireProfileId(id)));
 ipcMain.handle('server-command', async (_, id, command) => servers.command(requireProfileId(id), command));
@@ -202,7 +210,10 @@ ipcMain.handle('server-properties', async (_, id) => servers.getProperties(requi
 ipcMain.handle('save-server-properties', async (_, id, changes) => servers.setProperties(requireProfileId(id), changes));
 ipcMain.handle('approved-server-players', async (_, id) => servers.approvedPlayers(requireProfileId(id)));
 ipcMain.handle('set-approved-server-player', async (_, id, name, approved, operator) => servers.setApprovedPlayer(requireProfileId(id), String(name || ''), approved === true, operator === true));
+ipcMain.handle('server-player-action', async (_, id, name, action) => servers.playerAction(requireProfileId(id), String(name || ''), String(action || '')));
 ipcMain.handle('export-server-invite', async (_, id) => servers.exportInvite(requireProfileId(id)));
+ipcMain.handle('save-server-invite', async (_, id) => { const server = (await servers.list()).find(item => item.id === requireProfileId(id)); if (!server) throw new Error('Server not found.'); const code = await servers.exportInvite(server.id); const result = await dialog.showSaveDialog(mainWindow, { title: 'Save Swirl server invite', defaultPath: `${server.name.replace(/[^a-z0-9_-]+/gi, '-')}.swirlinvite`, filters: [{ name: 'Swirl server invite', extensions: ['swirlinvite'] }] }); if (result.canceled || !result.filePath) return { saved: false }; await engine.atomicWrite(result.filePath, code); return { saved: true, file: result.filePath }; });
+ipcMain.handle('open-server-invite-file', async () => { const result = await dialog.showOpenDialog(mainWindow, { title: 'Open Swirl server invite', properties: ['openFile'], filters: [{ name: 'Swirl server invite', extensions: ['swirlinvite', 'txt'] }] }); if (result.canceled || !result.filePaths[0]) return { opened: false }; const stat = await fsp.stat(result.filePaths[0]); if (stat.size > 2 * 1024 * 1024) throw new Error('That invite file is too large.'); return { opened: true, code: (await fsp.readFile(result.filePaths[0], 'utf8')).trim() }; });
 ipcMain.handle('backup-server', async (_, id) => servers.backup(requireProfileId(id), (await engine.getSettings()).backupRetention));
 ipcMain.handle('server-backups', async (_, id) => servers.listBackups(requireProfileId(id)));
 ipcMain.handle('restore-server-backup', async (_, id, backupId) => servers.restoreBackup(requireProfileId(id), String(backupId || '')));

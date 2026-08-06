@@ -205,6 +205,12 @@ class IcecreamServerEngine {
     const id = crypto.randomBytes(8).toString('hex');
     const directory = this.dir(id);
     const whitelist = options.whitelist === true; const hostName = /^[a-zA-Z0-9_]{3,16}$/.test(String(options.hostName || '')) ? String(options.hostName) : '';
+    const template = ['friends', 'performance', 'creative', 'custom'].includes(options.template) ? options.template : 'friends';
+    const templateProperties = template === 'creative'
+      ? { gamemode: 'creative', difficulty: 'peaceful', pvp: false, commandBlocks: true, viewDistance: 12, simulationDistance: 8 }
+      : template === 'performance'
+        ? { gamemode: 'survival', difficulty: 'easy', pvp: true, commandBlocks: false, viewDistance: 8, simulationDistance: 6 }
+        : { gamemode: 'survival', difficulty: 'easy', pvp: true, commandBlocks: false, viewDistance: 10, simulationDistance: 8 };
     const memoryMb = Math.max(1024, Math.min(8192, Number(options.memoryMb) || (isCalendarRelease(version) ? 4096 : 2048)));
     try {
       await Promise.all([fsp.mkdir(path.join(directory, 'logs'), { recursive: true }), fsp.mkdir(path.join(directory, 'mods'), { recursive: true })]);
@@ -213,13 +219,13 @@ class IcecreamServerEngine {
       await fsp.writeFile(path.join(directory, 'mods', 'swirl-server-mods.json'), '[]', 'utf8');
       await fsp.writeFile(path.join(directory, 'server.properties'), [
         'motd=Swirl private server', `server-port=${number}`, 'online-mode=false', `white-list=${whitelist}`, `enforce-whitelist=${whitelist}`,
-        'enforce-secure-profile=false', 'max-players=12', 'gamemode=survival', 'difficulty=easy', 'pvp=true', 'enable-command-block=false', 'view-distance=10', 'simulation-distance=8', 'sync-chunk-writes=true', 'network-compression-threshold=256'
+        'enforce-secure-profile=false', 'max-players=12', `gamemode=${templateProperties.gamemode}`, `difficulty=${templateProperties.difficulty}`, `pvp=${templateProperties.pvp}`, `enable-command-block=${templateProperties.commandBlocks}`, `view-distance=${templateProperties.viewDistance}`, `simulation-distance=${templateProperties.simulationDistance}`, 'sync-chunk-writes=true', 'network-compression-threshold=256'
       ].join('\n') + '\n', 'utf8');
       if (whitelist && hostName) await this.atomicWrite(path.join(directory, 'whitelist.json'), JSON.stringify([{ uuid: this.offlineUuid(hostName), name: hostName }], null, 2));
       const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
       await this.atomicWrite(path.join(directory, '.swirl-invite-private.pem'), privateKey.export({ type: 'pkcs8', format: 'pem' }));
       await this.atomicWrite(path.join(directory, 'swirl-invite-public.pem'), publicKey.export({ type: 'spki', format: 'pem' }));
-      const server = { id, name: title, version: String(version), port: number, privateTestMode: true, whitelist, hostName, memoryMb, loaderVersion: '', createdAt: new Date().toISOString() };
+      const server = { id, name: title, version: String(version), port: number, template, privateTestMode: true, whitelist, hostName, memoryMb, loaderVersion: '', createdAt: new Date().toISOString() };
       list.push(server); await this.save(list); await this.writeLock(id); this.state(id, 'stopped', 'Ready to start.'); return { ...server, runtime: this.states.get(id) };
     } catch (error) { await fsp.rm(directory, { recursive: true, force: true }).catch(() => {}); throw error; }
   }); }
@@ -337,6 +343,7 @@ class IcecreamServerEngine {
     await Promise.all([this.atomicWrite(whitelistFile, JSON.stringify(whitelist, null, 2)), this.atomicWrite(opsFile, JSON.stringify(operators, null, 2))]);
     return { name: player, approved: Boolean(approved), operator: Boolean(approved && operator), pending: false };
   }
+  async playerAction(id, name, action) { const player = this.validatePlayerName(name); if (!['kick', 'ban', 'pardon'].includes(action)) throw new Error('Choose a supported player action.'); if (!this.running.has(id)) throw new Error('Start the server before using live player controls.'); if (action === 'kick') this.command(id, `kick ${player} Removed by the host`); if (action === 'ban') { this.command(id, `ban ${player} Removed by the host`); this.command(id, `whitelist remove ${player}`); } if (action === 'pardon') this.command(id, `pardon ${player}`); return { name: player, action, pending: true }; }
   async clientRequirements(id) { const mods = await this.installedMods(id); const requirements = []; for (const mod of mods) { let clientSide = mod.clientSide || 'unknown'; if (clientSide === 'unknown') { try { clientSide = (await this.json(`${MODRINTH_API}/project/${encodeURIComponent(mod.projectId)}`)).client_side || 'unknown'; } catch {} } if (clientSide !== 'unsupported') requirements.push({ projectId: mod.projectId, versionId: mod.versionId, sha512: mod.sha512 || '', name: mod.name, required: clientSide === 'required', clientSide }); } return requirements; }
   async exportInvite(id) { const server = (await this.rawList()).find(item => item.id === id); if (!server) throw new Error('Server not found.'); const pinned = await this.ensureLoaderPin(server); const lock = await this.writeLock(id); const addresses = this.lanAddresses().map(item => item.address); if (!addresses.length) throw new Error('No usable LAN address is available. Connect to Wi-Fi or Ethernet first.'); const publicKey = await fsp.readFile(path.join(this.dir(id), 'swirl-invite-public.pem'), 'utf8'); const payload = { format: 1, serverId: id, name: server.name, gameVersion: server.version, loaderVersion: pinned.loaderVersion || lock.loaderVersion || '', addresses, port: server.port, mods: await this.clientRequirements(id), publicKey, createdAt: new Date().toISOString() }; const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url'); const privateKey = await fsp.readFile(path.join(this.dir(id), '.swirl-invite-private.pem'), 'utf8'); const signature = crypto.sign(null, Buffer.from(encoded), privateKey).toString('base64url'); return `SWIRLSERVER1.${encoded}.${signature}`; }
   async diagnose(id, clientVersion = '') {

@@ -46,8 +46,8 @@ base {
 }
 
 tasks.register('bundleMod', Copy) {
-    dependsOn tasks.named('remapJar')
-    from tasks.named('remapJar').flatMap { it.archiveFile }
+    dependsOn tasks.named('jar')
+    from tasks.named('jar').flatMap { it.archiveFile }
     into layout.projectDirectory.dir('../bundled-mods')
     rename { "swirl-client-${targetMinecraft}.jar" }
 }

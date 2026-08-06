@@ -1,0 +1,20 @@
+{
+  "name": "swirl-launcher",
+  "version": "1.0.0",
+  "description": "Swirl - an offline, profile-isolated Fabric launcher for Minecraft Java Edition 1.14+",
+  "author": "Swirl Team",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "files": ["*.js", "*.css", "index.html", "assets/**/*", "bundled-mods/**/*", "README.md", "RELEASE.md"],
+  "scripts": { "start": "electron .", "test": "node compatibility-test.js && node smoke-test.js", "test:compat": "node compatibility-test.js", "test:package": "node package-qa.js", "icon": "electron render-icon.js", "dist:win": "node package-qa.js --installer", "sign:update": "node sign-update-manifest.js" },
+  "build": {
+    "appId": "com.swirl.launcher",
+    "productName": "Swirl",
+    "electronDist": "node_modules/electron/dist",
+    "artifactName": "Swirl-${version}-Setup.${ext}",
+    "files": ["main.js", "launcher-engine.js", "server-engine.js", "update-service.js", "version-policy.js", "preload.js", "renderer.js", "host-ui.js", "identity-ui.js", "qa-hooks.js", "*.css", "index.html", "assets/fonts/Minecraft.ttf", "assets/swirl-logo.*", "bundled-mods/**/*", "README.md", "package.json", "update-config.json"],
+    "win": { "icon": "assets/swirl-logo.png", "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "perMachine": false, "runAfterFinish": true }
+  },
+  "devDependencies": { "electron": "^37.0.0", "electron-builder": "^26.15.3" }
+}

@@ -1,0 +1,23 @@
+# Generated dependencies and builds
+node_modules/
+dist/
+qa-dist/
+.qa-electron-*/
+Microsoft/
+
+# Java/Gradle caches
+**/.gradle/
+**/build/
+
+# Credentials must never be committed
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Logs and temporary files
+*.log
+*.tmp
+*.part

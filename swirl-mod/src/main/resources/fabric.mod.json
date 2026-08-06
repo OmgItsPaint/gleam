@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "swirl_client",
+  "version": "${version}",
+  "name": "Swirl Client",
+  "description": "The in-game menu for Swirl profiles.",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["app.swirl.client.SwirlClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "${minecraft_version}",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}

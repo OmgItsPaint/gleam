@@ -1,0 +1,53 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+def supportedTargets = ['26.1.2', '26.2']
+def targetMinecraft = providers.gradleProperty('minecraftVersion').getOrElse('26.2')
+if (!supportedTargets.contains(targetMinecraft)) {
+    throw new GradleException("Use -PminecraftVersion=26.1.2 or -PminecraftVersion=26.2")
+}
+def apiVersion = targetMinecraft == '26.1.2' ? fabric_api_26_1_2 : fabric_api_26_2
+
+version = "${mod_version}+${targetMinecraft}"
+group = maven_group
+
+repositories {
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${targetMinecraft}"
+    implementation "net.fabricmc:fabric-loader:${loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${apiVersion}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    inputs.property 'minecraft_version', targetMinecraft
+    filesMatching('fabric.mod.json') {
+        expand version: project.version, minecraft_version: targetMinecraft
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+    withSourcesJar()
+}
+
+base {
+    archivesName = "swirl-client-${targetMinecraft}"
+}
+
+tasks.register('bundleMod', Copy) {
+    dependsOn tasks.named('remapJar')
+    from tasks.named('remapJar').flatMap { it.archiveFile }
+    into layout.projectDirectory.dir('../bundled-mods')
+    rename { "swirl-client-${targetMinecraft}.jar" }
+}

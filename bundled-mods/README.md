@@ -1,0 +1,1 @@
+Place release-built `swirl-client-26.1.2.jar` and `swirl-client-26.2.jar` files here. Swirl copies the matching JAR into each profile at launch. Build them from `swirl-mod` with the `bundleMod` Gradle task.

@@ -1,0 +1,49 @@
+name: Build and publish Windows release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.2.1"
+      - name: Build in-game modules
+        run: |
+          gradle -p swirl-mod clean bundleMod -PminecraftVersion=26.1.2
+          gradle -p swirl-mod clean bundleMod -PminecraftVersion=26.2
+      - name: Configure signed update channel
+        env:
+          SWIRL_UPDATE_PUBLIC_KEY: ${{ secrets.SWIRL_UPDATE_PUBLIC_KEY }}
+        run: node configure-update.js
+      - run: npm ci
+      - run: npm test
+      - name: Build signed installer
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: npm run dist:win
+      - name: Sign update manifest
+        env:
+          SWIRL_UPDATE_PRIVATE_KEY: ${{ secrets.SWIRL_UPDATE_PRIVATE_KEY }}
+        run: npm run sign:update
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.exe
+            dist/latest.json

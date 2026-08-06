@@ -1,0 +1,34 @@
+# Ignore every generated top-level folder by default
+/*/
+
+# Keep project source folders
+!/.github/
+!/.github/**
+!/assets/
+!/assets/**
+!/bundled-mods/
+!/bundled-mods/**
+!/swirl-mod/
+!/swirl-mod/**
+
+# Ignore generated content inside source folders
+**/.gradle/
+**/build/
+node_modules/
+dist/
+qa-dist/
+.qa-electron-*/
+Microsoft/
+
+# Never upload credentials
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+
+# Temporary files
+*.log
+*.tmp
+*.part

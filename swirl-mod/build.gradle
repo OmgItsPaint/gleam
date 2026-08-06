@@ -3,9 +3,9 @@ plugins {
 }
 
 def supportedTargets = ['26.1.2', '26.2']
-def targetMinecraft = providers.gradleProperty('minecraftVersion').getOrElse('26.2')
+def targetMinecraft = providers.gradleProperty('minecraftVersion').getOrElse('26.2').toString().trim()
 if (!supportedTargets.contains(targetMinecraft)) {
-    throw new GradleException("Use -PminecraftVersion=26.1.2 or -PminecraftVersion=26.2")
+    throw new GradleException("Unsupported Minecraft version '${targetMinecraft}'. Expected 26.1.2 or 26.2.")
 }
 def apiVersion = targetMinecraft == '26.1.2' ? fabric_api_26_1_2 : fabric_api_26_2
 

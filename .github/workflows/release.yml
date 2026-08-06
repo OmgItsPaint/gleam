@@ -23,10 +23,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "9.5.0"
-      - name: Build in-game modules
-        run: |
-          gradle -p swirl-mod clean bundleMod -PminecraftVersion=26.1.2
-          gradle -p swirl-mod clean bundleMod -PminecraftVersion=26.2
+      - name: Build in-game module for Minecraft 26.1.2
+        env:
+          ORG_GRADLE_PROJECT_minecraftVersion: "26.1.2"
+        run: gradle -p swirl-mod clean bundleMod
+      - name: Build in-game module for Minecraft 26.2
+        env:
+          ORG_GRADLE_PROJECT_minecraftVersion: "26.2"
+        run: gradle -p swirl-mod clean bundleMod
       - name: Configure signed update channel
         env:
           SWIRL_UPDATE_PUBLIC_KEY: ${{ secrets.SWIRL_UPDATE_PUBLIC_KEY }}

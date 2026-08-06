@@ -10,6 +10,7 @@
   const consoleState = byId('console-state');
   const form = byId('create-server');
   const commandForm = byId('server-command-form');
+  byId('copy-server-address').textContent = 'Copy invite';
   let activeId = '';
   let activeServer = null;
   let modServer = null;
@@ -53,24 +54,30 @@
         const state = document.createElement('small'); state.className = `host-state ${runtime.state}`; state.textContent = `${runtime.message}${unread.has(server.id) ? ' • new console output' : ''}`;
         information.append(name, details, state);
         const actions = document.createElement('div'); actions.className = 'host-server-actions';
-        const consoleButton = document.createElement('button'); consoleButton.className = activeId === server.id ? 'mod-install' : 'secondary-action'; consoleButton.textContent = activeId === server.id ? 'Console selected' : 'Open console'; consoleButton.addEventListener('click', () => selectServer(server)); actions.append(consoleButton);
+        const secondary = document.createElement('div'); secondary.className = 'host-secondary-actions';
+        const consoleButton = document.createElement('button'); consoleButton.className = activeId === server.id ? 'mod-install' : 'secondary-action'; consoleButton.textContent = activeId === server.id ? 'Console selected' : 'Open console'; consoleButton.disabled = activeId === server.id; consoleButton.addEventListener('click', () => selectServer(server)); actions.append(consoleButton);
         const start = document.createElement('button'); start.className = 'mod-install'; start.textContent = runtime.state === 'error' ? 'Try again' : 'Start'; start.disabled = activeStates.has(runtime.state);
         start.addEventListener('click', async () => {
           activeId = server.id; activeServer = { ...server, runtime: { state: 'starting', message: 'Preparing server…' } };
           consoleView.textContent = `Starting ${server.name}…`; status.textContent = 'Preparing server…'; drawActive(activeServer);
           try { await window.icecream.startServer(server.id); await refresh(); } catch (error) { const message = friendly(error); status.textContent = message; activeServer.runtime = { state: 'error', message }; drawActive(activeServer); await refresh(); }
         });
-        actions.append(start);
+        if (!activeStates.has(runtime.state)) actions.append(start);
         const invite = document.createElement('button'); invite.className = 'secondary-action'; invite.textContent = 'Copy invite'; invite.addEventListener('click', async () => { invite.disabled = true; try { const code = await window.icecream.exportServerInvite(server.id); await navigator.clipboard.writeText(code); invite.textContent = 'Copied'; setTimeout(() => { invite.textContent = 'Copy invite'; invite.disabled = false; }, 1400); } catch (error) { status.textContent = friendly(error); invite.disabled = false; } }); actions.append(invite);
-        if (server.whitelist) { const players = document.createElement('button'); players.className = 'secondary-action'; players.textContent = 'Players'; players.addEventListener('click', () => openPlayers(server)); actions.append(players); }
-        if (activeStates.has(runtime.state)) { const test = document.createElement('button'); test.className = 'secondary-action'; test.textContent = 'Test connection'; test.addEventListener('click', () => testConnection(server)); const stop = document.createElement('button'); stop.className = 'danger-action'; stop.textContent = 'Stop'; stop.addEventListener('click', () => stopServer(server)); actions.append(test, stop); }
+        if (server.whitelist) { const players = document.createElement('button'); players.className = 'secondary-action'; players.textContent = 'Players'; players.addEventListener('click', () => openPlayers(server)); secondary.append(players); }
+        if (activeStates.has(runtime.state)) { const test = document.createElement('button'); test.className = 'secondary-action'; test.textContent = 'Test connection'; test.addEventListener('click', () => testConnection(server)); const stop = document.createElement('button'); stop.className = 'danger-action'; stop.textContent = 'Stop'; stop.addEventListener('click', () => stopServer(server)); secondary.append(test); actions.append(stop); }
         else {
           const mods = document.createElement('button'); mods.className = 'mod-install'; mods.textContent = 'Manage mods'; mods.addEventListener('click', () => openServerMods(server));
           const folder = document.createElement('button'); folder.className = 'secondary-action'; folder.textContent = 'All files'; folder.addEventListener('click', async () => { try { await window.icecream.openServerFolder(server.id); } catch (error) { status.textContent = friendly(error); } });
           const backup = document.createElement('button'); backup.className = 'secondary-action'; backup.textContent = 'Back up'; backup.addEventListener('click', async () => { backup.disabled = true; try { await window.icecream.backupServer(server.id); status.textContent = `${server.name} was backed up.`; } catch (error) { status.textContent = friendly(error); } finally { backup.disabled = false; } });
           const browse = document.createElement('button'); browse.className = 'secondary-action'; browse.textContent = 'Backups'; browse.addEventListener('click', () => window.swirlOpenBackups?.({ kind: 'server', id: server.id, title: server.name, onRestore: refresh }));
           const test = document.createElement('button'); test.className = 'secondary-action'; test.textContent = 'Test connection'; test.addEventListener('click', () => testConnection(server));
-          const remove = document.createElement('button'); remove.className = 'danger-action'; remove.textContent = 'Delete'; remove.addEventListener('click', async () => { if (!window.confirm(`Delete ${server.name}? Its folder will be moved to Swirl Trash.`)) return; try { await window.icecream.deleteServer(server.id); if (activeId === server.id) { activeId = ''; activeServer = null; } await refresh(); } catch (error) { status.textContent = friendly(error); } }); actions.append(mods, test, backup, browse, folder, remove);
+          const remove = document.createElement('button'); remove.className = 'danger-action'; remove.textContent = 'Delete server'; remove.addEventListener('click', async () => { if (!window.confirm(`Delete ${server.name}? Its folder will be moved to Swirl Trash.`)) return; try { await window.icecream.deleteServer(server.id); if (activeId === server.id) { activeId = ''; activeServer = null; } await refresh(); } catch (error) { status.textContent = friendly(error); } }); secondary.append(mods, test, backup, browse, folder, remove);
+        }
+        if (secondary.children.length) {
+          const more = document.createElement('details'); more.className = 'host-more';
+          const moreLabel = document.createElement('summary'); moreLabel.textContent = 'More'; moreLabel.setAttribute('aria-label', `More actions for ${server.name}`);
+          more.append(moreLabel, secondary); actions.append(more);
         }
         card.append(cover, information, actions); list.append(card);
         if (server.id === activeId) { activeServer = server; drawActive(server); }
@@ -89,7 +96,6 @@
   async function testConnection(server) { const dialog = byId('connection-dialog'); const results = byId('connection-results'); byId('connection-title').textContent = server.name; clear(results); const loading = document.createElement('p'); loading.className = 'mod-status'; loading.textContent = 'Testing this computer and server…'; results.append(loading); if (!dialog.open) dialog.showModal(); try { const report = await window.icecream.testServerConnection(server.id, byId('version').value); clear(results); for (const check of report.checks) { const card = document.createElement('article'); card.className = `diagnostic-card ${check.level}`; const mark = document.createElement('span'); mark.className = 'diagnostic-mark'; mark.textContent = check.level === 'pass' ? '✓' : check.level === 'fail' ? '!' : check.level === 'warn' ? '?' : 'i'; const info = document.createElement('div'); const title = document.createElement('strong'); title.textContent = check.title; const detail = document.createElement('small'); detail.textContent = check.detail; info.append(title, detail); card.append(mark, info); results.append(card); } } catch (error) { loading.textContent = friendly(error); } }
 
   byId('open-hosts').addEventListener('click', () => { ['library-view', 'profiles-view', 'settings-view', 'editor-view'].forEach(id => { byId(id).hidden = true; }); page.hidden = false; window.swirlSetActiveTab?.('hosts'); refresh(); });
-  byId('hosts-back').addEventListener('click', () => byId('open-library').click());
   byId('stop-active-server').addEventListener('click', () => stopServer());
   byId('clear-server-console').addEventListener('click', () => { consoleBuffers.set(activeId, ''); consoleView.textContent = ''; });
   byId('server-mod-close').addEventListener('click', () => byId('server-mod-dialog').close());
@@ -99,8 +105,15 @@
   byId('update-server-mods').addEventListener('click', async () => { if (!modServer) return; const button = byId('update-server-mods'); button.disabled = true; try { const updated = await window.icecream.updateServerMods(modServer.id); byId('server-mod-status').textContent = updated.length ? `Updated ${updated.join(', ')}.` : 'All server mods are current.'; await drawInstalledServerMods(); } catch (error) { byId('server-mod-status').textContent = friendly(error); } finally { button.disabled = false; } });
   byId('server-mod-search').addEventListener('submit', async event => { event.preventDefault(); if (!modServer) return; const results = byId('server-mod-results'); clear(results); byId('server-mod-status').textContent = 'Searching compatible server mods…'; try { const installed = new Set((await window.icecream.installedServerMods(modServer.id)).map(mod => mod.projectId)); const mods = await window.icecream.searchServerMods(modServer.id, byId('server-mod-query').value); byId('server-mod-status').textContent = mods.length ? `${mods.length} compatible result${mods.length === 1 ? '' : 's'}.` : 'No compatible server mods found.'; for (const mod of mods) { const card = document.createElement('article'); card.className = 'mod-card server-mod-item'; const icon = document.createElement('img'); icon.className = 'mod-icon'; icon.alt = ''; if (mod.icon) icon.src = mod.icon; const info = document.createElement('div'); const title = document.createElement('div'); title.className = 'mod-title'; title.textContent = mod.title; const description = document.createElement('div'); description.className = 'mod-description'; description.textContent = mod.description || ''; info.append(title, description); const install = document.createElement('button'); install.className = 'mod-install'; install.textContent = installed.has(mod.id) ? 'Installed' : 'Install'; install.disabled = installed.has(mod.id); install.addEventListener('click', async () => { install.disabled = true; install.textContent = 'Installing…'; try { await window.icecream.installServerMod(modServer.id, mod.id, ''); await drawInstalledServerMods(); install.textContent = 'Installed'; } catch (error) { byId('server-mod-status').textContent = friendly(error); install.disabled = false; install.textContent = 'Install'; } }); card.append(icon, info, install); results.append(card); } } catch (error) { byId('server-mod-status').textContent = friendly(error); } });
   byId('copy-server-address').addEventListener('click', async () => {
-    if (!activeServer || !addresses[0]) { status.textContent = 'No LAN address was found. Check your Wi-Fi connection.'; return; }
-    try { await navigator.clipboard.writeText(addressFor(activeServer)); byId('copy-server-address').textContent = 'Copied'; setTimeout(() => { byId('copy-server-address').textContent = 'Copy address'; }, 1200); } catch { status.textContent = 'Could not copy the address. Select it from the Ready message instead.'; }
+    if (!activeServer) { status.textContent = 'Select a running server first.'; return; }
+    const button = byId('copy-server-address');
+    button.disabled = true;
+    try {
+      const invite = await window.icecream.exportServerInvite(activeServer.id);
+      await navigator.clipboard.writeText(invite);
+      button.textContent = 'Copied';
+      setTimeout(() => { button.textContent = 'Copy invite'; button.disabled = false; }, 1200);
+    } catch (error) { status.textContent = friendly(error); button.disabled = false; }
   });
   form.addEventListener('submit', async event => {
     event.preventDefault();

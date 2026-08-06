@@ -66,6 +66,27 @@ function createWindow() {
     mainWindow.webContents.on('console-message', (_, level, message) => { if (level >= 2) rendererErrors.push(message); });
     mainWindow.webContents.once('did-finish-load', () => { console.log('SWIRL_SMOKE_LOADED'); setTimeout(async () => { try { const interaction = await mainWindow.webContents.executeJavaScript(`(() => { const trigger = document.getElementById('identity-trigger'); const popover = document.getElementById('identity-popover'); const input = document.getElementById('identity-input'); trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); trigger.click(); const opened = !popover.hidden; input.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); input.click(); const stayedOpen = !popover.hidden; document.getElementById('library-view').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); const closedOutside = popover.hidden; const selected = id => document.getElementById(id).getAttribute('aria-current') === 'page'; document.getElementById('open-profiles').click(); const profilesActive = selected('open-profiles'); document.getElementById('open-hosts').click(); const hostActive = selected('open-hosts'); document.getElementById('open-settings').click(); const settingsActive = selected('open-settings'); document.getElementById('open-library').click(); const playActive = selected('open-library'); const unwired = [...document.querySelectorAll('button')].filter(button => { if (button.closest('#welcome')?.hidden) return false; const click = window.__swirlHasListener?.(button, 'click') || typeof button.onclick === 'function'; const submit = button.type === 'submit' && button.form && window.__swirlHasListener?.(button.form, 'submit'); return !click && !submit; }).map(button => button.id || button.textContent.trim()); return { opened, stayedOpen, closedOutside, profilesActive, hostActive, settingsActive, playActive, allButtonsWired: unwired.length === 0, unwired }; })()`); const failed = Object.entries(interaction).filter(([key, value]) => key !== 'unwired' && value !== true); if (failed.length) rendererErrors.push(`UI interaction failed: ${JSON.stringify(interaction)}`); } catch (error) { rendererErrors.push(error.message); } if (rendererErrors.length) { console.error(`SWIRL_SMOKE_FAILED: ${rendererErrors.join(' | ')}`); process.exitCode = 1; } else console.log('SWIRL_SMOKE_OK'); app.quit(); }, 3000); });
   }
+  if (SMOKE_TEST && process.env.SWIRL_CAPTURE_DIR) {
+    mainWindow.webContents.once('did-finish-load', () => setTimeout(async () => {
+      const captureDir = path.resolve(process.env.SWIRL_CAPTURE_DIR);
+      await fsp.mkdir(captureDir, { recursive: true });
+      const views = [
+        ['play', "document.getElementById('open-library').click()"],
+        ['profiles', "document.getElementById('open-profiles').click()"],
+        ['profile-editor', "document.querySelector('.profile-card-actions .secondary-action')?.click()"],
+        ['profile-editor-actions', "document.querySelector('.profile-more summary')?.click()"],
+        ['host', "document.getElementById('open-hosts').click()"],
+        ['host-actions', "document.querySelector('.host-more summary')?.click(); document.querySelector('.shell').scrollTop = document.getElementById('server-list').offsetTop"],
+        ['settings', "document.getElementById('open-settings').click()"]
+      ];
+      for (const [name, script] of views) {
+        await mainWindow.webContents.executeJavaScript(script);
+        await new Promise(resolve => setTimeout(resolve, 120));
+        const image = await mainWindow.webContents.capturePage();
+        await fsp.writeFile(path.join(captureDir, `${name}.png`), image.toPNG());
+      }
+    }, 500));
+  }
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, url) => { if (!url.startsWith('file:')) event.preventDefault(); });
   const dataRoot = path.join(app.getPath('appData'), 'icecream-client');

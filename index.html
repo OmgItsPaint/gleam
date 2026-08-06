@@ -26,7 +26,7 @@
     </header>
 
     <div id="library-view" class="page library-page">
-      <section class="hero"><div><p class="eyebrow">PLAY</p><h1>Minecraft<br><em>with friends.</em></h1><p class="subcopy">Choose a version and profile, then play.</p><div class="hero-actions"><button id="hero-profiles" class="secondary-action">Profiles</button><button id="hero-mods" class="text-action">Mods →</button></div></div><div class="hero-orb" aria-hidden="true"><img src="assets/swirl-logo.svg" alt=""></div></section>
+      <section class="hero"><div><p class="eyebrow">PLAY</p><h1>Minecraft<br><em>with friends.</em></h1><p class="subcopy">Choose a version and profile, then play.</p></div><div class="hero-orb" aria-hidden="true"><img src="assets/swirl-logo.svg" alt=""></div></section>
       <section class="dashboard">
         <div class="dashboard-heading"><div><p class="eyebrow">PLAY</p><h2>Choose your game</h2></div><span id="active-version-badge" class="compatible">Loading…</span></div>
         <p class="flow-hint">Choose a name, version, and profile.</p>
@@ -47,7 +47,7 @@
     </div>
 
     <section id="profiles-view" class="profiles-page page" hidden>
-      <div class="profiles-hero"><div><p class="eyebrow">PROFILES</p><h2>Your games</h2><p>Each profile has its own worlds, mods, and settings.</p></div><div class="profile-toolbar-actions"><button id="open-import" class="secondary-action">Import</button><button id="focus-new-profile" class="launch compact-launch"><span>New profile</span><b>+</b></button></div></div>
+      <div class="profiles-hero"><div><p class="eyebrow">PROFILES</p><h2>Your games</h2><p>Each profile has its own worlds, mods, and settings.</p></div><div class="profile-toolbar-actions"><button id="open-import" class="secondary-action">Import profile</button></div></div>
       <div class="profile-tools"><form id="create-profile" class="new-profile-form"><input id="profile-name-input" maxlength="50" placeholder="New profile name"><button>Create</button></form><div class="field profile-create-version"><span>MINECRAFT VERSION</span><input id="profile-create-version" type="hidden"><div id="profile-create-version-picker" class="custom-picker"></div></div><div class="field profile-copy-field"><span>COPY MODS FROM</span><input id="profile-source" type="hidden"><div id="profile-source-picker" class="custom-picker"></div></div></div>
       <div id="import-area" class="import-area" hidden><textarea id="import-profile-code" class="profile-code" placeholder="Paste a profile code"></textarea><button id="import-profile" class="pack-button">Import</button></div>
       <div class="profile-filter-bar"><div class="filter-tabs"><button class="filter-tab selected" data-profile-filter="all">All</button><button class="filter-tab" data-profile-filter="current">This version</button><button class="filter-tab" data-profile-filter="sync">Auto-update</button></div><label class="profile-search"><span>⌕</span><input id="profile-search" type="search" placeholder="Search profiles"></label><span id="profile-count" class="compatible">0 profiles</span></div>
@@ -69,11 +69,13 @@
       </div>
       <div class="profile-manage" aria-label="Profile tools">
         <div class="profile-manage-group"><span>PROFILE</span><button id="editor-rename" type="button">Rename</button><button id="editor-duplicate" type="button">Duplicate</button></div>
-        <div class="profile-manage-group"><span>BACKUP</span><button id="editor-backup" type="button">Back up</button><button id="editor-restore" type="button">Restore</button><button id="editor-repair" type="button">Check files</button></div>
-        <div class="profile-manage-group"><span>SETTINGS</span><button id="editor-sync-settings" type="button" title="Copy Minecraft controls, video, audio, and accessibility settings from this profile to every other profile">Sync to all profiles</button></div>
-        <div class="profile-manage-group"><span>FILES</span><button id="editor-folder" type="button">Open folder</button></div>
         <label class="editor-sync"><input id="editor-autosync" type="checkbox"><span><b>Auto-update</b><small>Before launch</small></span></label>
-        <button id="editor-delete" class="danger-action" type="button">Delete</button>
+        <details class="profile-more"><summary>More</summary><div class="profile-more-menu">
+          <div class="profile-manage-group"><span>BACKUP &amp; REPAIR</span><button id="editor-backup" type="button">Back up now</button><button id="editor-restore" type="button">Browse backups</button><button id="editor-repair" type="button">Repair files</button></div>
+          <div class="profile-manage-group"><span>SETTINGS</span><button id="editor-sync-settings" type="button" title="Copy Minecraft controls, video, audio, and accessibility settings from this profile to every other profile">Sync settings to all profiles</button></div>
+          <div class="profile-manage-group"><span>FILES</span><button id="editor-folder" type="button">Open folder</button></div>
+          <button id="editor-delete" class="danger-action" type="button">Delete profile</button>
+        </div></details>
       </div>
       <div class="editor-grid">
         <aside class="editor-sidebar" aria-label="Installed profile mods">
@@ -90,7 +92,6 @@
       </div>
     </section>
     <section id="hosts-view" class="control-panel page" hidden>
-      <button id="hosts-back" class="back">Back to Play</button>
       <p class="eyebrow">HOST</p><h2>Your servers</h2>
       <p class="host-warning">Only share your server address with friends you trust.</p>
       <div id="host-running-summary" class="host-running-summary" hidden><div><span class="section-kicker">SERVER READY</span><strong id="running-server-name">Server</strong><small id="running-server-address">Checking address…</small></div><div class="host-server-actions"><button id="copy-server-address" class="secondary-action">Copy address</button><button id="stop-active-server" class="danger-action">Stop server</button></div></div>

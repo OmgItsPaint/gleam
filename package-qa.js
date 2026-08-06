@@ -33,6 +33,7 @@ async function run() {
     const electronDist = path.join(project, 'node_modules', 'electron', 'dist');
     const result = spawnSync(process.execPath, [builder,
       '--win', installerMode ? 'nsis' : 'dir',
+      '--publish', 'never',
       `--config.directories.app=${appDirectory}`,
       `--config.directories.output=${outputDirectory}`,
       `--config.electronDist=${electronDist}`

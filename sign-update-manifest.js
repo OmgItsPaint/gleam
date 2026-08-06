@@ -5,7 +5,7 @@ const UpdateService = require('./update-service');
 const pkg = require('./package.json');
 
 const repository = String(process.env.GITHUB_REPOSITORY || '').trim();
-const tag = String(process.env.GITHUB_REF_NAME || `v${pkg.version}`).trim();
+const tag = String(process.env.RELEASE_TAG || process.env.GITHUB_REF_NAME || `v${pkg.version}`).trim();
 const privateKey = String(process.env.SWIRL_UPDATE_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
 const artifactName = `Swirl-${pkg.version}-Setup.exe`;
 const artifact = path.join(__dirname, 'dist', artifactName);

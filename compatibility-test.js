@@ -62,6 +62,9 @@ async function run() {
     assert.equal((await fsp.readdir(engine.settingsBackupRoot(secondProfile.id))).length, 1);
     const world = path.join(engine.instanceDirectory('26.2', profile.id), 'saves', 'Friends World');
     await fsp.mkdir(world, { recursive: true }); await fsp.writeFile(path.join(world, 'level.dat'), 'fixture');
+    const resourcePack = path.join(engine.instanceDirectory('26.2', profile.id), 'resourcepacks', 'Friends Pack', 'pack.mcmeta'); await fsp.mkdir(path.dirname(resourcePack), { recursive: true }); await fsp.writeFile(resourcePack, '{}');
+    const transferred = await engine.createModProfile('Transferred', '26.2', profile.id, { mods: false, settings: true, resourcePacks: true, worlds: true, preset: 'vanilla' });
+    assert.equal(transferred.preset, 'vanilla'); assert.equal(transferred.mods.length, 0); assert.equal(await fsp.readFile(path.join(engine.instanceDirectory('26.2', transferred.id), 'options.txt'), 'utf8'), 'gamma:1.0\nrenderDistance:12\n'); assert.equal(fs.existsSync(path.join(engine.instanceDirectory('26.2', transferred.id), 'resourcepacks', 'Friends Pack', 'pack.mcmeta')), true); assert.equal(fs.existsSync(path.join(engine.instanceDirectory('26.2', transferred.id), 'saves', 'Friends World', 'level.dat')), true);
     const backup = await engine.ensureWorldUpgradeBackup(profile);
     assert.ok(backup && backup.worlds.includes('Friends World'));
     assert.equal(fs.existsSync(path.join(backup.destination, 'Friends World', 'level.dat')), true);
@@ -75,10 +78,15 @@ async function run() {
     assert.equal(fs.existsSync(world), true);
     await engine.restoreProfileBackup(profile.id, profileBackups[1].id); assert.equal(fs.existsSync(world), true);
 
+    const originalPlan = engine.planModUpdates.bind(engine); const originalBackup = engine.backupModProfile.bind(engine); const originalInstall = engine.installModrinthMod.bind(engine); const originalRestore = engine.restoreProfileBackup.bind(engine); let installAttempt = 0; let restoredBackup = '';
+    engine.planModUpdates = async () => [{ projectId: 'one', name: 'One', toVersionId: 'one-new' }, { projectId: 'two', name: 'Two', toVersionId: 'two-new' }]; engine.backupModProfile = async () => ({ destination: path.join(engine.profileBackupRoot(profile.id), 'rollback-fixture') }); engine.installModrinthMod = async () => { installAttempt += 1; if (installAttempt === 2) throw new Error('fixture failure'); return []; }; engine.restoreProfileBackup = async (_, backupId) => { restoredBackup = backupId; return {}; };
+    await assert.rejects(() => engine.updateAllMods(profile.gameVersion, profile.id), /Updates were rolled back/); assert.equal(restoredBackup, 'rollback-fixture'); engine.planModUpdates = originalPlan; engine.backupModProfile = originalBackup; engine.installModrinthMod = originalInstall; engine.restoreProfileBackup = originalRestore;
+
     const servers = new IcecreamServerEngine(temporary, async version => ({ java: 'java', major: policy.fallbackJavaMajor(version) }));
     const server = await servers.create('Friends', '26.2', 25565, { acceptEula: true, whitelist: true, hostName: 'HostFriend' });
     assert.equal(server.version, '26.2');
     assert.equal(server.memoryMb, 4096);
+    const originalProperties = await servers.getProperties(server.id); assert.equal(originalProperties.maxPlayers, 12); const savedProperties = await servers.setProperties(server.id, { motd: 'Friends only', maxPlayers: 6, gamemode: 'creative', difficulty: 'normal', viewDistance: 14, simulationDistance: 10, pvp: false, commandBlocks: true }); assert.equal(savedProperties.motd, 'Friends only'); assert.equal(savedProperties.maxPlayers, 6); assert.equal(savedProperties.gamemode, 'creative'); assert.equal(savedProperties.pvp, false);
     assert.equal(fs.existsSync(path.join(servers.modsDir(server.id), 'README.txt')), true);
     assert.equal(fs.existsSync(servers.lockFile(server.id)), true);
     const fakeMinecraft = net.createServer(socket => socket.once('data', () => { const text = Buffer.from(JSON.stringify({ version: { name: 'Swirl QA', protocol: 999 }, players: { online: 1, max: 8 }, description: { text: 'test' } })); const body = Buffer.concat([servers.encodeVarInt(0), servers.encodeVarInt(text.length), text]); socket.end(Buffer.concat([servers.encodeVarInt(body.length), body])); }));

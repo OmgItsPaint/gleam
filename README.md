@@ -2,6 +2,10 @@
 
 Swirl is a profile-isolated Fabric launcher for Minecraft Java Edition. It supports stable legacy releases from 1.14 onward plus the tested calendar releases 26.1.2 and 26.2. Test versions can be shown from Settings and always require their own profile.
 
+## Swirl 1.7
+
+The 1.1–1.7 foundation is delivered as one coordinated release: first-run setup, managed Java, isolated profile presets, selective profile transfers, signed lockfile sharing, client and server Modrinth management, LAN invites and diagnostics, transactional mod updates, server gameplay settings, backup browsing and restoration, retention limits, accessibility controls, signed launcher updates, rollback, and saveable support reports. Client and server Update All operations show the exact version plan first and restore their pre-update backup if any later step fails.
+
 ## Run
 
 1. Install Node.js 20 or newer.

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const https = require('https');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -156,10 +156,11 @@ ipcMain.handle('install-mod-version', async (_, projectId, versionId, gameVersio
 ipcMain.handle('mod-versions', async (_, projectId, gameVersion = '26.2') => engine.modrinthVersions(String(projectId), requireVersion(gameVersion)));
 ipcMain.handle('mod-project', async (_, projectId) => engine.getJson(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`));
 ipcMain.handle('installed-mods', async (_, gameVersion, profileId) => engine.getInstalledMods(requireVersion(gameVersion), requireProfileId(profileId)));
+ipcMain.handle('plan-mod-updates', async (_, gameVersion, profileId) => engine.planModUpdates(requireVersion(gameVersion), requireProfileId(profileId)));
 ipcMain.handle('update-mods', async (_, gameVersion, profileId) => engine.updateAllMods(requireVersion(gameVersion), requireProfileId(profileId)));
 ipcMain.handle('check-mod-compatibility', async (_, gameVersion, profileId) => engine.preflightMods(requireVersion(gameVersion), requireProfileId(profileId)));
 ipcMain.handle('mod-profiles', async () => engine.getModProfiles());
-ipcMain.handle('create-mod-profile', async (_, name, gameVersion, sourceProfileId) => engine.createModProfile(String(name || ''), requireVersion(gameVersion), sourceProfileId ? requireProfileId(sourceProfileId) : ''));
+ipcMain.handle('create-mod-profile', async (_, name, gameVersion, sourceProfileId, transfer = {}) => engine.createModProfile(String(name || ''), requireVersion(gameVersion), sourceProfileId ? requireProfileId(sourceProfileId) : '', transfer));
 ipcMain.handle('export-mod-profile', async (_, id) => engine.exportModProfile(requireProfileId(id)));
 ipcMain.handle('import-mod-profile', async (_, code) => engine.importModProfile(code));
 ipcMain.handle('inspect-server-invite', async (_, code) => engine.parseServerInvite(code));
@@ -181,6 +182,7 @@ ipcMain.handle('delete-profile-backup', async (_, id, backupId) => engine.delete
 ipcMain.handle('remove-mod', async (_, projectId, gameVersion, profileId) => engine.removeMod(String(projectId), requireVersion(gameVersion), requireProfileId(profileId)));
 ipcMain.handle('open-profile-folder', async (_, id) => { const profile = (await engine.getModProfiles()).find(item => item.id === requireProfileId(id)); if (!profile) throw new Error('That profile was not found.'); await engine.repairModProfile(profile.id); const error = await shell.openPath(engine.instanceDirectory(profile.gameVersion, profile.id)); if (error) throw new Error(error); return true; });
 ipcMain.handle('diagnostics', async () => engine.diagnostics());
+ipcMain.handle('save-diagnostics', async () => { const report = { generatedAt: new Date().toISOString(), launcher: await engine.diagnostics(), servers: (await servers.list()).map(({ runtime, ...server }) => ({ id: server.id, name: server.name, version: server.version, port: server.port, memoryMb: server.memoryMb, state: runtime?.state || 'stopped' })) }; const result = await dialog.showSaveDialog(mainWindow, { title: 'Save Swirl troubleshooting report', defaultPath: `Swirl-support-${new Date().toISOString().slice(0, 10)}.json`, filters: [{ name: 'JSON report', extensions: ['json'] }] }); if (result.canceled || !result.filePath) return { saved: false }; await engine.atomicWrite(result.filePath, JSON.stringify(report, null, 2)); return { saved: true, file: result.filePath }; });
 ipcMain.handle('open-data-folder', async () => { await engine.ensure(engine.root); const error = await shell.openPath(engine.root); if (error) throw new Error(error); return true; });
 ipcMain.handle('settings', async () => engine.getSettings());
 ipcMain.handle('save-settings', async (_, settings) => { const saved = await engine.setSettings(settings); if (servers) servers.backupRetention = saved.backupRetention; return saved; });
@@ -196,6 +198,8 @@ ipcMain.handle('start-server', async (_, id) => servers.start(requireProfileId(i
 ipcMain.handle('stop-server', async (_, id) => servers.stop(requireProfileId(id)));
 ipcMain.handle('server-command', async (_, id, command) => servers.command(requireProfileId(id), command));
 ipcMain.handle('server-console', async (_, id) => servers.console(requireProfileId(id)));
+ipcMain.handle('server-properties', async (_, id) => servers.getProperties(requireProfileId(id)));
+ipcMain.handle('save-server-properties', async (_, id, changes) => servers.setProperties(requireProfileId(id), changes));
 ipcMain.handle('approved-server-players', async (_, id) => servers.approvedPlayers(requireProfileId(id)));
 ipcMain.handle('set-approved-server-player', async (_, id, name, approved, operator) => servers.setApprovedPlayer(requireProfileId(id), String(name || ''), approved === true, operator === true));
 ipcMain.handle('export-server-invite', async (_, id) => servers.exportInvite(requireProfileId(id)));
@@ -207,6 +211,7 @@ ipcMain.handle('search-server-mods', async (_, id, query) => servers.searchMods(
 ipcMain.handle('installed-server-mods', async (_, id) => servers.installedMods(requireProfileId(id)));
 ipcMain.handle('install-server-mod', async (_, id, projectId, versionId = '') => servers.installMod(requireProfileId(id), String(projectId || ''), String(versionId || '')));
 ipcMain.handle('remove-server-mod', async (_, id, projectId) => servers.removeMod(requireProfileId(id), String(projectId || '')));
+ipcMain.handle('plan-server-mod-updates', async (_, id) => servers.planModUpdates(requireProfileId(id)));
 ipcMain.handle('update-server-mods', async (_, id) => servers.updateMods(requireProfileId(id)));
 ipcMain.handle('test-server-connection', async (_, id, clientVersion = '') => servers.diagnose(requireProfileId(id), String(clientVersion || '')));
 ipcMain.handle('delete-server', async (_, id) => servers.remove(requireProfileId(id)));

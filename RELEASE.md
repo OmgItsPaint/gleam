@@ -16,7 +16,7 @@ npm.cmd install
 npm.cmd test
 ```
 
-The test command checks version admission, metadata-driven Java selection, argument rules, profile isolation, lockfile tamper rejection, backup retention and restoration, server defaults and diagnostics, signed-manifest verification, IPC wiring, every static button, and basic UI navigation.
+The test command checks version admission, metadata-driven Java selection, argument rules, profile isolation, lockfile tamper rejection, concurrent server creation and automatic port allocation, approved-name persistence, signed server invites and tamper rejection, invite-profile isolation, backup retention and restoration, server defaults and diagnostics, signed-manifest verification, IPC wiring, every static button, and basic UI navigation.
 
 ## Manual 26.x release matrix
 
@@ -36,6 +36,8 @@ Also verify:
 - Modrinth shows only exact-version Fabric files; incompatible JARs block launch with a readable explanation.
 - Restoring a backup is tested on a copy, never on the only copy of a world.
 - The server console reaches **Ready**, the copied LAN address works, whitelist names match exactly, and Stop exits cleanly.
+- Two or more servers can run on different ports, their console output stays separated, and closing Swirl stops each process cleanly.
+- A signed server invite works on a second clean computer, installs the exact compatible mod hashes, selects the imported profile, and direct-joins the correct address.
 - The bundled Swirl in-game mod opens with Right Shift for both supported versions.
 - Every backup browser restores the selected timestamp and respects its retention setting.
 - Server Modrinth installs, dependency installs, updates, removals, and lockfile failures are exercised on a disposable server.

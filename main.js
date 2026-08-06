@@ -4,7 +4,6 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const crypto = require('crypto');
-const os = require('os');
 const { pathToFileURL } = require('url');
 const IcecreamEngine = require('./launcher-engine');
 const IcecreamServerEngine = require('./server-engine');
@@ -142,6 +141,13 @@ ipcMain.handle('mod-profiles', async () => engine.getModProfiles());
 ipcMain.handle('create-mod-profile', async (_, name, gameVersion, sourceProfileId) => engine.createModProfile(String(name || ''), requireVersion(gameVersion), sourceProfileId ? requireProfileId(sourceProfileId) : ''));
 ipcMain.handle('export-mod-profile', async (_, id) => engine.exportModProfile(requireProfileId(id)));
 ipcMain.handle('import-mod-profile', async (_, code) => engine.importModProfile(code));
+ipcMain.handle('inspect-server-invite', async (_, code) => engine.parseServerInvite(code));
+ipcMain.handle('import-server-invite', async (_, code) => engine.importServerInvite(code));
+ipcMain.handle('test-server-invite', async (_, code) => {
+  const invite = await engine.parseServerInvite(code); const attempts = [];
+  for (const address of invite.addresses) { try { const response = await servers.minecraftStatus(address, invite.port, 2500); return { ok: true, address, response, invite, attempts }; } catch (error) { attempts.push({ address, error: error.message }); } }
+  return { ok: false, invite, attempts };
+});
 ipcMain.handle('save-mod-profile', async (_, id, changes) => engine.setModProfile(requireProfileId(id), changes));
 ipcMain.handle('duplicate-mod-profile', async (_, id, name) => engine.duplicateModProfile(requireProfileId(id), String(name || '')));
 ipcMain.handle('delete-mod-profile', async (_, id) => engine.deleteModProfile(requireProfileId(id)));
@@ -164,10 +170,14 @@ ipcMain.handle('apply-launcher-update', async () => { const result = await updat
 ipcMain.handle('launcher-healthy', async () => updates.markHealthy());
 ipcMain.handle('fabric-loaders', async (_, gameVersion) => engine.getFabricLoaders(requireVersion(gameVersion)));
 ipcMain.handle('servers', async () => servers.list());
-ipcMain.handle('create-server', async (_, name, version, port, options = {}) => servers.create(name, requireVersion(version), port, { whitelist: options?.whitelist === true, acceptEula: options?.acceptEula === true, memoryMb: Number(options?.memoryMb) }));
+ipcMain.handle('create-server', async (_, name, version, port, options = {}) => servers.create(name, requireVersion(version), port, { whitelist: options?.whitelist === true, acceptEula: options?.acceptEula === true, memoryMb: Number(options?.memoryMb), hostName: String(options?.hostName || '') }));
 ipcMain.handle('start-server', async (_, id) => servers.start(requireProfileId(id)));
 ipcMain.handle('stop-server', async (_, id) => servers.stop(requireProfileId(id)));
 ipcMain.handle('server-command', async (_, id, command) => servers.command(requireProfileId(id), command));
+ipcMain.handle('server-console', async (_, id) => servers.console(requireProfileId(id)));
+ipcMain.handle('approved-server-players', async (_, id) => servers.approvedPlayers(requireProfileId(id)));
+ipcMain.handle('set-approved-server-player', async (_, id, name, approved, operator) => servers.setApprovedPlayer(requireProfileId(id), String(name || ''), approved === true, operator === true));
+ipcMain.handle('export-server-invite', async (_, id) => servers.exportInvite(requireProfileId(id)));
 ipcMain.handle('backup-server', async (_, id) => servers.backup(requireProfileId(id), (await engine.getSettings()).backupRetention));
 ipcMain.handle('server-backups', async (_, id) => servers.listBackups(requireProfileId(id)));
 ipcMain.handle('restore-server-backup', async (_, id, backupId) => servers.restoreBackup(requireProfileId(id), String(backupId || '')));
@@ -181,4 +191,4 @@ ipcMain.handle('test-server-connection', async (_, id, clientVersion = '') => se
 ipcMain.handle('delete-server', async (_, id) => servers.remove(requireProfileId(id)));
 ipcMain.handle('open-server-folder', async (_, id) => { const error = await shell.openPath(servers.dir(requireProfileId(id))); if (error) throw new Error(error); return true; });
 ipcMain.handle('open-server-mods-folder', async (_, id) => { const directory = servers.modsDir(requireProfileId(id)); await fsp.mkdir(directory, { recursive: true }); const error = await shell.openPath(directory); if (error) throw new Error(error); return true; });
-ipcMain.handle('server-lan-addresses', async () => Object.values(os.networkInterfaces()).flat().filter(item => item && item.family === 'IPv4' && !item.internal).map(item => item.address));
+ipcMain.handle('server-lan-addresses', async () => servers.lanAddresses());

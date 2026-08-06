@@ -1,1 +1,4 @@
-#hosts-view.server-running .host-create{display:none}#hosts-view.server-running .host-layout{grid-template-columns:1fr}#hosts-view.server-running .host-console{min-height:560px}#hosts-view.server-running h2:after{content:" — running";color:#f5be5d;font-size:.55em;font-weight:500}
+#hosts-view.server-running .host-console{min-height:560px}
+#hosts-view.server-running .host-create{display:block}
+#hosts-view.server-running .host-layout{grid-template-columns:minmax(310px,.86fr) minmax(0,1.35fr)}
+@media(max-width:850px){#hosts-view.server-running .host-layout{grid-template-columns:1fr}}

@@ -154,7 +154,7 @@ class IcecreamEngine {
       await this.saveModProfiles(profiles.filter(item => item.id !== id)); const settings = await this.getSettings(); const activeProfiles = Object.fromEntries(Object.entries(settings.activeProfiles || {}).filter(([, value]) => value !== id)); await this.setSettings({ activeProfiles, replaceActiveProfiles: true }); return { name: profile.name, recoverableAt: destination }; });
   }
   async removeMod(projectId, gameVersion, profileId) {
-    return this.withProfileLock(profileId, async () => { const manifest = await this.getInstalledMods(gameVersion, profileId); const target = manifest.find(mod => mod.projectId === projectId); if (!target) throw new Error('That mod is not installed in this profile.'); await this.backupModProfile(profileId);
+    return this.withProfileLock(profileId, async () => { const selectedProfile = (await this.getModProfiles()).find(item => item.id === profileId); if (selectedProfile?.serverRequiredMods?.some(mod => mod.projectId === projectId)) throw new Error('That mod is required by this server profile. Import a new server invite if the host changed it.'); const manifest = await this.getInstalledMods(gameVersion, profileId); const target = manifest.find(mod => mod.projectId === projectId); if (!target) throw new Error('That mod is not installed in this profile.'); await this.backupModProfile(profileId);
       const modsDirectory = path.join(this.instanceDirectory(gameVersion, profileId), 'mods'); const next = manifest.filter(mod => mod.projectId !== projectId); await fsp.rm(path.join(modsDirectory, target.file), { force: true }); await this.atomicWrite(path.join(modsDirectory, 'icecream-mods.json'), JSON.stringify(next, null, 2));
       const profiles = await this.getModProfiles(); const profile = profiles.find(item => item.id === profileId); if (profile) { profile.mods = next.map(mod => ({ projectId: mod.projectId, versionId: mod.versionId })); await this.saveModProfiles(profiles); } await this.writeProfileLock(profileId, gameVersion); return target; });
   }
@@ -164,6 +164,69 @@ class IcecreamEngine {
   async exportModProfile(id) { const profile = (await this.getModProfiles()).find(item => item.id === id); if (!profile) throw new Error('That mod profile was not found.'); const lock = await this.writeProfileLock(id, profile.gameVersion); return `SWIRL2.${Buffer.from(JSON.stringify({ name: profile.name, gameVersion: profile.gameVersion, fabricLoaderVersion: profile.fabricLoaderVersion || '', mods: lock.mods })).toString('base64url')}`; }
   async importModProfile(code) { const text = String(code || '').trim(); const prefix = ['SWIRL2.', 'SWIRL1.', 'ICECREAM1.'].find(item => text.startsWith(item)) || ''; if (!prefix || text.length > 200000) throw new Error('This is not a valid Swirl mod profile code.'); let shared; try { shared = JSON.parse(Buffer.from(text.slice(prefix.length), 'base64url').toString('utf8')); } catch { throw new Error('This mod profile code could not be decoded.'); } const settings = await this.getSettings(); if (!isSupportedVersion(shared.gameVersion, settings.experimentalVersions === true) || !Array.isArray(shared.mods)) throw new Error('This profile does not contain a supported Minecraft version.'); for (const mod of shared.mods) { if (!mod || typeof mod.projectId !== 'string' || typeof mod.versionId !== 'string') throw new Error('This mod profile contains an invalid mod entry.'); }
     const id = crypto.randomBytes(8).toString('hex'); const profile = { id, name: `${String(shared.name || 'Imported profile').slice(0, 40)} (imported)`, gameVersion: shared.gameVersion, fabricLoaderVersion: typeof shared.fabricLoaderVersion === 'string' ? shared.fabricLoaderVersion : '', autoSync: false, createdAt: new Date().toISOString(), mods: [] }; const profiles = await this.getModProfiles(); const target = this.instanceDirectory(profile.gameVersion, id); try { await Promise.all([this.ensure(path.join(target, 'mods')), this.ensure(path.join(target, 'saves')), this.ensure(path.join(target, 'config'))]); await this.atomicWrite(path.join(target, 'mods', 'icecream-mods.json'), '[]'); profiles.push(profile); await this.saveModProfiles(profiles); for (const mod of shared.mods) { await this.installModrinthMod(mod.projectId, profile.gameVersion, new Set(), mod.versionId, id); if (prefix === 'SWIRL2.' && mod.sha512) { const installed = (await this.getInstalledMods(profile.gameVersion, id)).find(item => item.projectId === mod.projectId); const actual = await this.fileHash(path.join(target, 'mods', installed.file), 'sha512'); if (actual !== mod.sha512) throw new Error(`${installed.file} did not match the shared profile hash.`); } } profile.mods = (await this.getInstalledMods(profile.gameVersion, id)).map(mod => ({ projectId: mod.projectId, versionId: mod.versionId })); await this.saveModProfiles(profiles); await this.writeProfileLock(id, profile.gameVersion); return profile; } catch (error) { await fsp.rm(target, { recursive: true, force: true }); await this.saveModProfiles(profiles.filter(item => item.id !== id)).catch(() => {}); throw error; } }
+  async parseServerInvite(code) {
+    const text = String(code || '').trim();
+    if (text.length > 300000) throw new Error('This server invite is too large.');
+    const parts = text.split('.');
+    if (parts.length !== 3 || parts[0] !== 'SWIRLSERVER1') throw new Error('This is not a valid Swirl server invite.');
+    let invite;
+    try { invite = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')); } catch { throw new Error('This server invite could not be decoded.'); }
+    const settings = await this.getSettings();
+    if (!invite || invite.format !== 1 || !isSupportedVersion(invite.gameVersion, settings.experimentalVersions === true)) throw new Error('This invite uses a Minecraft version that this Swirl build does not support.');
+    if (!Array.isArray(invite.addresses) || !invite.addresses.length || !Number.isInteger(Number(invite.port)) || Number(invite.port) < 1 || Number(invite.port) > 65535) throw new Error('This invite has no valid server address.');
+    if (!Array.isArray(invite.mods) || invite.mods.length > 500) throw new Error('This invite has an invalid mod list.');
+    if (typeof invite.publicKey !== 'string' || invite.publicKey.length > 10000) throw new Error('This invite has no signing key.');
+    let validSignature = false;
+    try { validSignature = crypto.verify(null, Buffer.from(parts[1]), invite.publicKey, Buffer.from(parts[2], 'base64url')); } catch {}
+    if (!validSignature) throw new Error('This server invite was changed or damaged. Ask the host for a new invite.');
+    const seen = new Set();
+    for (const mod of invite.mods) {
+      if (!mod || typeof mod.projectId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(mod.projectId) || typeof mod.versionId !== 'string' || !mod.versionId || seen.has(mod.projectId)) throw new Error('This invite contains an invalid or duplicate mod entry.');
+      if (mod.sha512 && !/^[a-f0-9]{128}$/i.test(mod.sha512)) throw new Error('This invite contains an invalid mod hash.');
+      seen.add(mod.projectId);
+    }
+    const addresses = invite.addresses.map(value => String(value || '').trim()).filter(value => value && value.length <= 253 && !/[\s/\\]/.test(value));
+    if (!addresses.length) throw new Error('This invite contains no usable server address.');
+    const address = addresses[0];
+    return { ...invite, addresses, port: Number(invite.port), joinAddress: `${address.includes(':') ? `[${address}]` : address}:${Number(invite.port)}`, fingerprint: crypto.createHash('sha256').update(invite.publicKey).digest('hex').match(/.{1,4}/g).slice(0, 4).join('-') };
+  }
+  async importServerInvite(code) {
+    const invite = await this.parseServerInvite(code);
+    const id = crypto.randomBytes(8).toString('hex');
+    const profile = { id, name: `${String(invite.name || 'Swirl server').slice(0, 32)} server`, gameVersion: invite.gameVersion, fabricLoaderVersion: typeof invite.loaderVersion === 'string' ? invite.loaderVersion : '', autoSync: false, createdAt: new Date().toISOString(), mods: [], serverAddress: invite.joinAddress, serverId: String(invite.serverId || ''), serverFingerprint: invite.fingerprint, serverRequiredMods: invite.mods.map(mod => ({ projectId: mod.projectId, versionId: mod.versionId, sha512: mod.sha512 || '' })) };
+    const profiles = await this.getModProfiles();
+    const target = this.instanceDirectory(profile.gameVersion, id);
+    try {
+      await Promise.all([this.ensure(path.join(target, 'mods')), this.ensure(path.join(target, 'saves')), this.ensure(path.join(target, 'config'))]);
+      await this.atomicWrite(path.join(target, 'mods', 'icecream-mods.json'), '[]');
+      profiles.push(profile); await this.saveModProfiles(profiles);
+      for (const required of invite.mods) {
+        await this.installModrinthMod(required.projectId, profile.gameVersion, new Set(), required.versionId, id);
+        const installed = (await this.getInstalledMods(profile.gameVersion, id)).find(item => item.projectId === required.projectId);
+        if (!installed) throw new Error(`Swirl could not install required mod ${required.projectId}.`);
+        if (required.sha512) {
+          const actual = await this.fileHash(path.join(target, 'mods', installed.file), 'sha512');
+          if (actual !== required.sha512) throw new Error(`${installed.name || installed.file} did not match the server's required file.`);
+        }
+      }
+      profile.mods = (await this.getInstalledMods(profile.gameVersion, id)).map(mod => ({ projectId: mod.projectId, versionId: mod.versionId }));
+      await this.saveModProfiles(profiles); await this.writeProfileLock(id, profile.gameVersion);
+      return { profile, invite };
+    } catch (error) {
+      await fsp.rm(target, { recursive: true, force: true });
+      await this.saveModProfiles(profiles.filter(item => item.id !== id)).catch(() => {});
+      throw error;
+    }
+  }
+  async verifyServerRequirements(profile) {
+    if (!profile?.serverAddress || !Array.isArray(profile.serverRequiredMods)) return true;
+    const manifest = await this.getInstalledMods(profile.gameVersion, profile.id); const installed = new Map(manifest.map(mod => [mod.projectId, mod])); const modsDirectory = path.join(this.instanceDirectory(profile.gameVersion, profile.id), 'mods');
+    for (const required of profile.serverRequiredMods) {
+      const mod = installed.get(required.projectId); if (!mod || mod.versionId !== required.versionId) throw new Error(`This server needs an exact version of ${mod?.name || required.projectId}. Import a fresh invite from the host to repair the server profile.`);
+      if (required.sha512 && await this.fileHash(path.join(modsDirectory, mod.file), 'sha512') !== required.sha512) throw new Error(`${mod.name || mod.file} does not match the server's required file. Import a fresh invite from the host.`);
+    }
+    return true;
+  }
   async getSettings() {
     if (this.settingsCache) return { ...this.settingsCache };
     const defaults = { autoUpdate: true, fabricLoaderVersion: '', activeProfiles: {}, lastVersion: '26.2', beginnerMode: true, experimentalVersions: false, backupRetention: 5, uiScale: 1, reducedMotion: false, readableFont: false };
@@ -295,6 +358,7 @@ class IcecreamEngine {
     const loaders = await this.getJson(`${FABRIC_META}/${versionId}`);
     const settings = await this.getSettings(); const savedProfile = profileId ? (await this.getModProfiles()).find(item => item.id === profileId) : null; const latest = loaders.find(item => item.loader && item.loader.stable) || loaders[0];
     const selectedVersion = savedProfile?.fabricLoaderVersion || settings.fabricLoaderVersions?.[versionId] || settings.fabricLoaderVersion || ''; const selected = loaders.find(item => item.loader && item.loader.version === selectedVersion);
+    if (savedProfile?.serverAddress && selectedVersion && !selected) throw new Error(`This server requires Fabric Loader ${selectedVersion}, but Fabric no longer lists it for Minecraft ${versionId}. Ask the host for a new invite.`);
     const chosen = selected || latest;
     if (!chosen || !chosen.loader) throw new Error(`No Fabric Loader is available for Minecraft ${versionId}.`);
     const loaderVersion = chosen.loader.version;
@@ -341,7 +405,7 @@ class IcecreamEngine {
     try { const mods = JSON.parse(await fsp.readFile(manifestFile, 'utf8')); if (!Array.isArray(mods)) throw new Error('manifest is not an array'); return mods; } catch (error) { throw new Error(`The installed-mod manifest is damaged (${error.message}). Restore it before changing mods.`); }
   }
   async updateAllMods(gameVersion, profileId = '') {
-    return this.withProfileLock(profileId, async () => { const installed = await this.getInstalledMods(gameVersion, profileId); const plan = []; const failures = []; for (const mod of installed) { try { const latest = await this.modrinthVersion(mod.projectId, gameVersion); if (latest.id !== mod.versionId) plan.push({ mod, latest }); } catch (error) { failures.push(`${mod.name}: ${error.message}`); } } if (failures.length) throw new Error(`Update check failed. Nothing changed. ${failures.join(' ')}`); for (const item of plan) { const preview = await this.previewInstall(item.mod.projectId, gameVersion, item.latest.id); if (!preview.valid) throw new Error(`Update blocked before changes: ${preview.errors.join(' ')}`); } if (plan.length) await this.backupModProfile(profileId); const updates = []; for (const item of plan) { await this.installModrinthMod(item.mod.projectId, gameVersion, new Set(), item.latest.id, profileId, true); updates.push(item.latest.name || item.mod.name); } return updates; });
+    return this.withProfileLock(profileId, async () => { const profile = (await this.getModProfiles()).find(item => item.id === profileId); if (profile?.serverAddress) throw new Error('Server profiles keep the host\'s exact mod versions. Ask the host for a new invite to update this profile.'); const installed = await this.getInstalledMods(gameVersion, profileId); const plan = []; const failures = []; for (const mod of installed) { try { const latest = await this.modrinthVersion(mod.projectId, gameVersion); if (latest.id !== mod.versionId) plan.push({ mod, latest }); } catch (error) { failures.push(`${mod.name}: ${error.message}`); } } if (failures.length) throw new Error(`Update check failed. Nothing changed. ${failures.join(' ')}`); for (const item of plan) { const preview = await this.previewInstall(item.mod.projectId, gameVersion, item.latest.id); if (!preview.valid) throw new Error(`Update blocked before changes: ${preview.errors.join(' ')}`); } if (plan.length) await this.backupModProfile(profileId); const updates = []; for (const item of plan) { await this.installModrinthMod(item.mod.projectId, gameVersion, new Set(), item.latest.id, profileId, true); updates.push(item.latest.name || item.mod.name); } return updates; });
   }
   async previewInstall(projectId, gameVersion, versionId) { try { const version = await this.getJson(`${MODRINTH_API}/version/${encodeURIComponent(versionId)}`); if (version.project_id !== projectId || !(version.game_versions || []).includes(gameVersion) || !(version.loaders || []).includes('fabric')) return { valid: false, errors: ['A selected update is not compatible with this profile.'] }; return { valid: true, errors: [] }; } catch (error) { return { valid: false, errors: [error.message] }; } }
   async preflightMods(gameVersion, profileId = '') {
@@ -391,15 +455,16 @@ class IcecreamEngine {
     if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) throw new Error('Minecraft requires a player name with 3–16 letters, numbers, or underscores.');
     if (!modProfile) throw new Error('Choose or create a profile before launching. Profiles keep saves, mods, and configuration separate.');
     if (modProfile && modProfile.gameVersion !== versionId) throw new Error(`The selected profile is for Minecraft ${modProfile.gameVersion}. Switch the Minecraft version or choose another profile.`);
-    const profileId = modProfile?.id || ''; await this.repairModProfile(profileId, false); await this.ensureWorldUpgradeBackup(modProfile); await this.installBundledClientMod(versionId, profileId); const autoSync = modProfile ? modProfile.autoSync === true : false; if (autoSync) { this.emit('mod', 'Checking installed mods for updates'); await this.updateAllMods(versionId, profileId); }
+    const profileId = modProfile?.id || ''; await this.repairModProfile(profileId, false); await this.verifyServerRequirements(modProfile); await this.ensureWorldUpgradeBackup(modProfile); await this.installBundledClientMod(versionId, profileId); const autoSync = modProfile ? modProfile.autoSync === true : false; if (autoSync) { this.emit('mod', 'Checking installed mods for updates'); await this.updateAllMods(versionId, profileId); }
     this.emit('compatibility', 'Checking installed mods for compatibility'); const compatibility = await this.preflightMods(versionId, profileId);
     if (compatibility.errors.length) throw new Error(`Launch blocked by mod incompatibilities: ${compatibility.errors.join(' ')}`);
     if (compatibility.warnings.length) this.emit('compatibility', `Compatibility check passed with warnings: ${compatibility.warnings.join(' ')}`);
     else this.emit('compatibility', `Compatibility check passed for ${compatibility.checked} installed mod${compatibility.checked === 1 ? '' : 's'}.`);
     await this.verifyProfileLock(profileId, versionId); const installed = await this.installFabric(versionId, profileId); const { vanilla, profile: fabric, classpath } = installed; const { version, versionDirectory } = vanilla; await this.writeProfileLock(profileId, versionId);
     const runtime = await this.javaForVersion(versionId); const java = runtime.java; const requiredJava = runtime.major; const gameDir = this.instanceDirectory(versionId, profileId); const assetsDir = path.join(this.root, 'assets'); const nativesDir = path.join(versionDirectory, 'natives'); await this.ensure(gameDir); await this.ensure(nativesDir);
-    const variables = { auth_player_name: username, version_name: fabric.id, game_directory: gameDir, assets_root: assetsDir, assets_index_name: version.assetIndex.id, auth_uuid: profile.uuid || '00000000000000000000000000000000', auth_access_token: profile.accessToken || 'icecream-local-test-token', auth_xuid: profile.xuid || '', clientid: profile.clientId || '', user_type: 'msa', version_type: version.type, natives_directory: nativesDir, launcher_name: LAUNCHER_NAME, launcher_version: LAUNCHER_VERSION, classpath: classpath.join(path.delimiter), classpath_separator: path.delimiter, library_directory: path.join(this.root, 'libraries'), user_properties: '{}', resolution_width: '1280', resolution_height: '720' };
-    const features = { is_demo_user: false, has_custom_resolution: false, has_quick_plays_support: false, is_quick_play_singleplayer: false, is_quick_play_multiplayer: false, is_quick_play_realms: false };
+    const directServer = String(modProfile?.serverAddress || '');
+    const variables = { auth_player_name: username, version_name: fabric.id, game_directory: gameDir, assets_root: assetsDir, assets_index_name: version.assetIndex.id, auth_uuid: profile.uuid || '00000000000000000000000000000000', auth_access_token: profile.accessToken || 'icecream-local-test-token', auth_xuid: profile.xuid || '', clientid: profile.clientId || '', user_type: 'msa', version_type: version.type, natives_directory: nativesDir, launcher_name: LAUNCHER_NAME, launcher_version: LAUNCHER_VERSION, classpath: classpath.join(path.delimiter), classpath_separator: path.delimiter, library_directory: path.join(this.root, 'libraries'), user_properties: '{}', resolution_width: '1280', resolution_height: '720', quickPlayMultiplayer: directServer, quickPlayPath: '' };
+    const features = { is_demo_user: false, has_custom_resolution: false, has_quick_plays_support: Boolean(directServer), is_quick_play_singleplayer: false, is_quick_play_multiplayer: Boolean(directServer), is_quick_play_realms: false };
     const memoryGiB = this.memoryGiB(); const gc = requiredJava >= 25 && this.javaSupports(java, ['-XX:+UseZGC']) ? ['-XX:+UseZGC'] : ['-XX:+UseG1GC'];
     const metadataJvm = [...this.resolveArguments(version.arguments?.jvm, variables, features), ...this.resolveArguments(fabric.arguments?.jvm, variables, features)];
     const jvm = [`-Xms${Math.min(1, memoryGiB)}G`, `-Xmx${memoryGiB}G`, ...gc, '-XX:+DisableExplicitGC', '-Dlog4j2.formatMsgNoLookups=true', ...metadataJvm];
@@ -408,6 +473,7 @@ class IcecreamEngine {
     if (version.logging?.client?.argument && version.logging.client.file) jvm.push(this.substitute(version.logging.client.argument, { path: path.join(assetsDir, 'log_configs', version.logging.client.file.id) }));
     let game = [...this.resolveArguments(version.arguments?.game, variables, features), ...this.resolveArguments(fabric.arguments?.game, variables, features)];
     if (!game.length) game = ['--username', username, '--version', fabric.id, '--gameDir', gameDir, '--assetsDir', assetsDir, '--assetIndex', version.assetIndex.id, '--uuid', variables.auth_uuid, '--accessToken', variables.auth_access_token, '--userType', 'msa', '--versionType', version.type];
+    if (directServer && isCalendarRelease(versionId) && !game.includes('--quickPlayMultiplayer')) game.push('--quickPlayMultiplayer', directServer);
     const crashDirectory = path.join(this.root, 'crash-reports'); await this.ensure(crashDirectory); const stamp = new Date().toISOString().replace(/[:.]/g, '-'); const logFile = path.join(crashDirectory, `${stamp}-${versionId}.log`); const reportFile = path.join(crashDirectory, `${stamp}-${versionId}.json`); const logStream = fs.createWriteStream(logFile, { flags: 'a' }); const command = [...jvm, fabric.mainClass, ...game]; const safeCommand = [java, ...command].map((part, index, all) => all[index - 1] === '--accessToken' ? '<redacted>' : part); await this.atomicWrite(reportFile, JSON.stringify({ startedAt: new Date().toISOString(), minecraftVersion: versionId, fabricVersion: fabric.id, java, javaMajor: requiredJava, memoryGiB, garbageCollector: gc[0], gameDirectory: gameDir, profile: modProfile ? { id: modProfile.id, name: modProfile.name } : null, mods: compatibility.checked, command: safeCommand }, null, 2));
     this.emit('launch', 'Starting Fabric Minecraft'); const child = spawn(java, command, { cwd: gameDir, detached: true, stdio: ['ignore', logStream, logStream] }); child.unref();
     child.on('error', error => this.emit('error', error.message)); child.on('exit', (code, signal) => { logStream.end(); if (code && code !== 0) this.emit('error', `Minecraft closed unexpectedly. Crash details: ${reportFile}`); }); return { pid: child.pid, gameDir, java, crashReport: reportFile };

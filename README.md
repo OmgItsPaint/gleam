@@ -18,17 +18,17 @@ The profile editor searches Modrinth for exact Fabric builds matching that profi
 
 The in-game Swirl module is under `swirl-mod`. Build a release with Gradle's `bundleMod` task for either `-PminecraftVersion=26.1.2` or `-PminecraftVersion=26.2`. Matching release JARs are placed in `bundled-mods` and copied into a profile at launch.
 
-Each client and server profile has a generated `swirl.lock.json` file containing exact Modrinth version IDs, filenames, and SHA-512 hashes. Swirl verifies it before play or hosting and stops when a file was changed outside the launcher. Share exported client profile codes with friends; server mods are managed from each server card.
+Each client and server profile has a generated lockfile containing exact Modrinth version IDs, filenames, and SHA-512 hashes. Swirl verifies it before play or hosting and stops when a file was changed outside the launcher. A host can copy a signed server invite; **Join with invite** verifies it, creates a new isolated client profile, pins the server's Minecraft and Fabric versions, installs every client-compatible server mod at the exact version and hash, and selects that profile. Extra client-only mods are allowed only when the normal compatibility check passes.
 
 ## Backups, hosting, and accessibility
 
-Profile and server editors provide one-click backups, a dated backup browser, selected restore, and configurable retention. Server **Test connection** checks the selected Minecraft version, port availability, local reachability, LAN addresses, and Windows Firewall state. Wi-Fi client isolation must still be checked on the router because a laptop cannot reliably detect it by itself.
+Profile and server editors provide one-click backups, a dated backup browser, selected restore, and configurable retention. Multiple servers can be saved and run on unique automatic ports; every running server keeps its own console buffer. Server **Test connection** performs a Minecraft status handshake, checks the selected version, port availability, LAN addresses, and Windows network profile. Wi-Fi client isolation must still be tested from a second computer because a host laptop cannot reliably detect it by itself.
 
 Settings include UI scaling, reduced motion, and a readable system-font option. Launcher updates accept only an HTTPS manifest signed with the configured Ed25519 release key and a SHA-256-matching installer. Rollback is automatically armed after the first known-good signed update is cached.
 
 ## Friends-only limitation
 
-Swirl is intentionally offline-only. Local player names work in single-player and Swirl servers configured with `online-mode=false`; there is no account or token storage. Swirl cannot join Realms or normal online-mode servers. Only use offline-mode hosting with people you trust because names are not verified identities.
+Swirl is intentionally offline-only. Local player names work in single-player and Swirl servers configured with `online-mode=false`; there is no account or token storage. Swirl cannot join Realms or normal online-mode servers. Signed invites prevent accidental invite corruption and pin files, but they do not verify a player's identity. Approved-name lists can be bypassed by copying a name, so only use offline hosting with people you trust.
 
 ## Tests
 

@@ -6,7 +6,7 @@ const { spawnSync } = require('child_process');
 const asarTools = require('@electron/asar');
 
 const sourceFiles = [
-  'main.js', 'launcher-engine.js', 'server-engine.js', 'update-service.js', 'preload.js',
+  'main.js', 'launcher-engine.js', 'server-engine.js', 'update-service.js', 'identity-service.js', 'preload.js',
   'renderer.js', 'host-ui.js', 'identity-ui.js', 'qa-hooks.js', 'version-policy.js',
   'styles.css', 'desert.css', 'editor.css', 'fixes.css', 'hosting-run.css', 'hosting.css',
   'identity.css', 'polish.css', 'swirl.css', 'index.html', 'README.md', 'RELEASE.md',
@@ -43,7 +43,7 @@ async function run() {
     const asar = path.join(outputDirectory, 'win-unpacked', 'resources', 'app.asar');
     if (!fs.existsSync(asar)) throw new Error('The packaged application archive was not created.');
     const archived = new Set(asarTools.listPackage(asar).map(entry => entry.replace(/^[/\\]/, '').replace(/\\/g, '/')));
-    const requiredRuntimeFiles = ['main.js', 'launcher-engine.js', 'server-engine.js', 'update-service.js', 'version-policy.js', 'preload.js', 'renderer.js', 'host-ui.js', 'identity-ui.js', 'qa-hooks.js', 'index.html', 'package.json', 'update-config.json'];
+    const requiredRuntimeFiles = ['main.js', 'launcher-engine.js', 'server-engine.js', 'update-service.js', 'version-policy.js', 'identity-service.js', 'preload.js', 'renderer.js', 'host-ui.js', 'identity-ui.js', 'qa-hooks.js', 'index.html', 'package.json', 'update-config.json'];
     const missing = requiredRuntimeFiles.filter(file => !archived.has(file));
     if (missing.length) throw new Error(`The packaged app is missing runtime files: ${missing.join(', ')}`);
     if (installerMode) {

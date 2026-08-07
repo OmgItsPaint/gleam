@@ -1,0 +1,22 @@
+.identity-manage {
+  width: 100%;
+  margin-top: 10px;
+  border: 3px solid var(--plum, #7b4079);
+  background: #09080b;
+  color: #fff;
+  padding: 10px 12px;
+  text-align: left;
+  box-shadow: 4px 4px 0 #170d18;
+}
+.identity-manage:hover { background: #241425; }
+.identity-fingerprint {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 16px 0;
+  padding: 14px;
+  border: 3px solid var(--plum, #7b4079);
+  background: #070609;
+  color: #d89bd2;
+  line-height: 1.7;
+  box-shadow: 6px 6px 0 #140b15;
+}

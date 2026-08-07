@@ -8,6 +8,7 @@ const net = require('net');
 const IcecreamEngine = require('./launcher-engine');
 const IcecreamServerEngine = require('./server-engine');
 const UpdateService = require('./update-service');
+const IdentityService = require('./identity-service');
 const policy = require('./version-policy');
 
 async function run() {
@@ -36,6 +37,10 @@ async function run() {
 
   const temporary = await fsp.mkdtemp(path.join(os.tmpdir(), 'swirl-compat-'));
   try {
+    const protectionKey = crypto.randomBytes(32); const fakeSafeStorage = { isEncryptionAvailable: () => true, encryptString: value => { const iv = crypto.randomBytes(12); const cipher = crypto.createCipheriv('aes-256-gcm', protectionKey, iv); const body = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]); return Buffer.concat([iv, cipher.getAuthTag(), body]); }, decryptString: value => { const decipher = crypto.createDecipheriv('aes-256-gcm', protectionKey, value.subarray(0, 12)); decipher.setAuthTag(value.subarray(12, 28)); return Buffer.concat([decipher.update(value.subarray(28)), decipher.final()]).toString('utf8'); } };
+    const identityService = new IdentityService(temporary, fakeSafeStorage); const identity = await identityService.info(); assert.match(identity.fingerprint, /^[a-f0-9]{64}$/); assert.equal(identity.osProtected, true);
+    const recovery = await identityService.exportRecovery('correct horse battery staple'); const restoredRoot = path.join(temporary, 'restored'); const restoredService = new IdentityService(restoredRoot, fakeSafeStorage); const restored = await restoredService.importRecovery(recovery, 'correct horse battery staple'); assert.equal(restored.fingerprint, identity.fingerprint); await assert.rejects(() => restoredService.importRecovery(recovery, 'wrong password'), /wrong or.*damaged/);
+    const broker = await identityService.startBroker('HostFriend', 'enrollment-token'); const message = Buffer.concat([Buffer.from('SWIRL-AUTH-1\0'), Buffer.from('server\0HostFriend\0nonce')]); const brokerReply = await fetch(`http://127.0.0.1:${broker.port}/sign`, { method: 'POST', headers: { Authorization: `Bearer ${broker.token}` }, body: message.toString('base64') }); assert.equal(brokerReply.status, 200); const replyFields = (await brokerReply.text()).split('\n'); assert.equal(replyFields[0], 'HostFriend'); assert.equal(replyFields[4], 'enrollment-token'); assert.equal(crypto.verify(null, message, { key: Buffer.from(replyFields[1], 'base64'), format: 'der', type: 'spki' }, Buffer.from(replyFields[3], 'base64')), true); identityService.closeBroker(broker.id);
     const engine = new IcecreamEngine(temporary);
     assert.equal(engine.requiredJava('26.2', { javaVersion: { majorVersion: 25 } }), 25);
     assert.equal(engine.requiredJava('1.21.1', { javaVersion: { majorVersion: 21 } }), 21);
@@ -90,7 +95,7 @@ async function run() {
     await assert.rejects(() => engine.updateAllMods(profile.gameVersion, profile.id), /Updates were rolled back/); assert.equal(restoredBackup, 'rollback-fixture'); engine.planModUpdates = originalPlan; engine.backupModProfile = originalBackup; engine.installModrinthMod = originalInstall; engine.restoreProfileBackup = originalRestore;
 
     const servers = new IcecreamServerEngine(temporary, async version => ({ java: 'java', major: policy.fallbackJavaMajor(version) }));
-    const server = await servers.create('Friends', '26.2', 25565, { acceptEula: true, whitelist: true, hostName: 'HostFriend', template: 'creative' });
+    const server = await servers.create('Friends', '26.2', 25565, { acceptEula: true, whitelist: true, hostName: 'HostFriend', hostIdentity: identity, template: 'creative' });
     assert.equal(server.version, '26.2');
     assert.equal(server.memoryMb, 4096);
     assert.equal(server.template, 'creative');
@@ -99,7 +104,7 @@ async function run() {
     assert.equal(fs.existsSync(servers.lockFile(server.id)), true);
     const fakeMinecraft = net.createServer(socket => socket.once('data', () => { const text = Buffer.from(JSON.stringify({ version: { name: 'Swirl QA', protocol: 999 }, players: { online: 1, max: 8 }, description: { text: 'test' } })); const body = Buffer.concat([servers.encodeVarInt(0), servers.encodeVarInt(text.length), text]); socket.end(Buffer.concat([servers.encodeVarInt(body.length), body])); }));
     await new Promise((resolve, reject) => fakeMinecraft.once('error', reject).listen(0, '127.0.0.1', resolve)); const fakePort = fakeMinecraft.address().port; const statusReply = await servers.minecraftStatus('127.0.0.1', fakePort); assert.equal(statusReply.version.name, 'Swirl QA'); await new Promise(resolve => fakeMinecraft.close(resolve));
-    assert.deepEqual((await servers.approvedPlayers(server.id)).map(item => item.name), ['HostFriend']);
+    assert.deepEqual((await servers.approvedPlayers(server.id)).map(item => item.name), ['HostFriend']); assert.equal((await servers.approvedPlayers(server.id))[0].verified, true);
     await servers.setApprovedPlayer(server.id, 'SecondFriend', true, true);
     assert.deepEqual((await servers.approvedPlayers(server.id)).map(item => [item.name, item.operator]), [['HostFriend', false], ['SecondFriend', true]]);
     await servers.setApprovedPlayer(server.id, 'SecondFriend', false, false);
@@ -112,8 +117,8 @@ async function run() {
     servers.lanAddresses = () => [{ address: '192.168.1.20', family: 'IPv4', adapter: 'Test Wi-Fi', preferred: true }];
     servers.ensureLoaderPin = async item => ({ gameVersion: item.version, loaderVersion: 'test-loader', installerVersion: 'test-installer' });
     const inviteCode = await servers.exportInvite(server.id); const parsedInvite = await engine.parseServerInvite(inviteCode);
-    assert.equal(parsedInvite.gameVersion, '26.2'); assert.equal(parsedInvite.joinAddress, '192.168.1.20:25565'); assert.match(parsedInvite.fingerprint, /^[a-f0-9]{4}(?:-[a-f0-9]{4}){3}$/);
-    const joined = await engine.importServerInvite(inviteCode); assert.equal(joined.profile.serverAddress, '192.168.1.20:25565'); assert.equal(joined.profile.fabricLoaderVersion, 'test-loader'); assert.equal(joined.profile.autoSync, false); assert.equal(fs.existsSync(engine.profileLockFile('26.2', joined.profile.id)), true);
+    assert.equal(parsedInvite.gameVersion, '26.2'); assert.equal(parsedInvite.joinAddress, '192.168.1.20:25565'); assert.match(parsedInvite.fingerprint, /^[a-f0-9]{4}(?:-[a-f0-9]{4}){3}$/); assert.equal(parsedInvite.authentication.required, true);
+    const joined = await engine.importServerInvite(inviteCode); assert.equal(joined.profile.serverAddress, '192.168.1.20:25565'); assert.equal(joined.profile.fabricLoaderVersion, 'test-loader'); assert.equal(joined.profile.autoSync, false); assert.equal(joined.profile.identityRequired, true); assert.equal(joined.profile.enrollmentToken, parsedInvite.authentication.enrollmentToken); assert.equal(fs.existsSync(engine.profileLockFile('26.2', joined.profile.id)), true);
     const inviteParts = inviteCode.split('.'); const changedPayload = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(inviteParts[1], 'base64url').toString('utf8')), port: 25566 })).toString('base64url');
     await assert.rejects(() => engine.parseServerInvite(`${inviteParts[0]}.${changedPayload}.${inviteParts[2]}`), /changed or damaged/);
     await servers.backup(server.id, 2); await new Promise(resolve => setTimeout(resolve, 5)); await servers.backup(server.id, 2); await new Promise(resolve => setTimeout(resolve, 5)); await servers.backup(server.id, 2);

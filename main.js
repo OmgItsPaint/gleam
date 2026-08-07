@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, safeStorage } = require('electron');
 const https = require('https');
 const fs = require('fs');
 const fsp = fs.promises;
@@ -8,6 +8,7 @@ const { pathToFileURL } = require('url');
 const IcecreamEngine = require('./launcher-engine');
 const IcecreamServerEngine = require('./server-engine');
 const UpdateService = require('./update-service');
+const IdentityService = require('./identity-service');
 const { version: APP_VERSION } = require('./package.json');
 const { compareVersionIds, isExperimentalVersion, isStableSupportedVersion, isSupportedVersion } = require('./version-policy');
 app.setName('Swirl');
@@ -20,7 +21,10 @@ let mainWindow;
 let engine;
 let servers;
 let updates;
+let identities;
 let isQuitting = false;
+let gameLaunchPending = false;
+let activeGame = null;
 const MANIFEST_URL = 'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json';
 const FABRIC_GAME_VERSIONS_URL = 'https://meta.fabricmc.net/v2/versions/game';
 
@@ -64,7 +68,7 @@ function createWindow() {
   if (SMOKE_TEST) {
     const rendererErrors = [];
     mainWindow.webContents.on('console-message', (_, level, message) => { if (level >= 2) rendererErrors.push(message); });
-    mainWindow.webContents.once('did-finish-load', () => { console.log('SWIRL_SMOKE_LOADED'); setTimeout(async () => { try { const interaction = await mainWindow.webContents.executeJavaScript(`(() => { const trigger = document.getElementById('identity-trigger'); const popover = document.getElementById('identity-popover'); const input = document.getElementById('identity-input'); trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); trigger.click(); const opened = !popover.hidden; input.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); input.click(); const stayedOpen = !popover.hidden; document.getElementById('library-view').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); const closedOutside = popover.hidden; const selected = id => document.getElementById(id).getAttribute('aria-current') === 'page'; document.getElementById('open-profiles').click(); const profilesActive = selected('open-profiles'); document.getElementById('open-hosts').click(); const hostActive = selected('open-hosts'); document.getElementById('open-settings').click(); const settingsActive = selected('open-settings'); document.getElementById('open-library').click(); const playActive = selected('open-library'); const unwired = [...document.querySelectorAll('button')].filter(button => { if (button.closest('#welcome')?.hidden) return false; const click = window.__swirlHasListener?.(button, 'click') || typeof button.onclick === 'function'; const submit = button.type === 'submit' && button.form && window.__swirlHasListener?.(button.form, 'submit'); return !click && !submit; }).map(button => button.id || button.textContent.trim()); return { opened, stayedOpen, closedOutside, profilesActive, hostActive, settingsActive, playActive, allButtonsWired: unwired.length === 0, unwired }; })()`); const failed = Object.entries(interaction).filter(([key, value]) => key !== 'unwired' && value !== true); if (failed.length) rendererErrors.push(`UI interaction failed: ${JSON.stringify(interaction)}`); } catch (error) { rendererErrors.push(error.message); } if (rendererErrors.length) { console.error(`SWIRL_SMOKE_FAILED: ${rendererErrors.join(' | ')}`); process.exitCode = 1; } else console.log('SWIRL_SMOKE_OK'); app.quit(); }, 3000); });
+    mainWindow.webContents.once('did-finish-load', () => { console.log('SWIRL_SMOKE_LOADED'); setTimeout(async () => { try { const interaction = await mainWindow.webContents.executeJavaScript(`(() => { const trigger = document.getElementById('identity-trigger'); const popover = document.getElementById('identity-popover'); const input = document.getElementById('identity-input'); trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); trigger.click(); const opened = !popover.hidden; input.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); input.click(); const stayedOpen = !popover.hidden; document.getElementById('library-view').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); const closedOutside = popover.hidden; const selected = id => document.getElementById(id).getAttribute('aria-current') === 'page'; document.getElementById('open-profiles').click(); const profilesActive = selected('open-profiles'); document.getElementById('open-hosts').click(); const hostActive = selected('open-hosts'); document.getElementById('open-settings').click(); const settingsActive = selected('open-settings'); document.getElementById('open-library').click(); const playActive = selected('open-library'); const unwired = [...document.querySelectorAll('button')].filter(button => { if (button.closest('#welcome')?.hidden) return false; const click = window.__swirlHasListener?.(button, 'click') || typeof button.onclick === 'function'; const submit = button.type === 'submit' && button.form && window.__swirlHasListener?.(button.form, 'submit'); return !click && !submit; }).map(button => button.id || button.textContent.trim()); return { opened, stayedOpen, closedOutside, profilesActive, hostActive, settingsActive, playActive, allButtonsWired: unwired.length === 0, unwired }; })()`); const failed = Object.entries(interaction).filter(([key, value]) => key !== 'unwired' && value !== true); if (failed.length) rendererErrors.push(`UI interaction failed: ${JSON.stringify(interaction)}`); } catch (error) { rendererErrors.push(error.message); } if (rendererErrors.length) { console.error(`SWIRL_SMOKE_FAILED: ${rendererErrors.join(' | ')}`); process.exitCode = 1; } else console.log('SWIRL_SMOKE_OK'); app.quit(); }, process.env.SWIRL_CAPTURE_DIR ? 6000 : 3000); });
   }
   if (SMOKE_TEST && process.env.SWIRL_CAPTURE_DIR) {
     mainWindow.webContents.once('did-finish-load', () => setTimeout(async () => {
@@ -78,10 +82,11 @@ function createWindow() {
         ['profile-editor-actions', "document.querySelector('.profile-more summary')?.click()"],
         ['host', "document.getElementById('open-hosts').click()"],
         ['host-actions', "document.querySelector('.host-more summary')?.click(); document.querySelector('.shell').scrollTop = document.getElementById('server-list').offsetTop"],
+        ['host-create', "document.querySelector('.host-more[open] summary')?.click(); document.querySelector('.shell').scrollTop = document.querySelector('.host-create').offsetTop"],
         ['settings', "document.getElementById('open-settings').click()"]
       ];
       for (const [name, script] of views) {
-        await mainWindow.webContents.executeJavaScript(script);
+        await mainWindow.webContents.executeJavaScript(`document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close()); ${script}`);
         await new Promise(resolve => setTimeout(resolve, 120));
         const image = await mainWindow.webContents.capturePage();
         await fsp.writeFile(path.join(captureDir, `${name}.png`), image.toPNG());
@@ -91,7 +96,11 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', (event, url) => { if (!url.startsWith('file:')) event.preventDefault(); });
   const dataRoot = path.join(app.getPath('appData'), 'icecream-client');
-  engine = new IcecreamEngine(dataRoot, event => mainWindow && mainWindow.webContents.send('download-progress', event));
+  identities = new IdentityService(dataRoot, safeStorage);
+  engine = new IcecreamEngine(dataRoot, event => {
+    if (event.stage === 'game-exit') { if (activeGame?.brokerId) identities.closeBroker(activeGame.brokerId); activeGame = null; }
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('download-progress', event);
+  });
   servers = new IcecreamServerEngine(dataRoot, version => engine.javaForVersion(version), event => mainWindow && mainWindow.webContents.send('server-event', event));
   engine.getSettings().then(settings => { servers.backupRetention = settings.backupRetention || 5; }).catch(() => {});
   updates = new UpdateService(dataRoot, APP_VERSION);
@@ -106,6 +115,7 @@ app.on('before-quit', event => {
   if (isQuitting || !servers) return;
   isQuitting = true;
   event.preventDefault();
+  identities?.closeAll();
   servers.stopAll().catch(() => {}).finally(() => app.quit());
 });
 
@@ -114,7 +124,21 @@ ipcMain.handle('window-control', (_, action) => {
   if (action === 'minimize') mainWindow.minimize();
   if (action === 'close') mainWindow.close();
 });
-ipcMain.handle('offline-player', async (_, requestedName = '') => { const username = String(requestedName || '').trim() || `Swirl${crypto.randomInt(1000, 9999)}`; if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) throw new Error('Use 3–16 letters, numbers, or underscores for your player name.'); return { username, uuid: offlineUuid(username), offline: true }; });
+ipcMain.handle('offline-player', async (_, requestedName = '') => { const username = String(requestedName || '').trim() || `Swirl${crypto.randomInt(1000, 9999)}`; if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) throw new Error('Use 3–16 letters, numbers, or underscores for your player name.'); const identity = await identities.info(); return { username, uuid: offlineUuid(username), offline: true, identityFingerprint: identity.fingerprint }; });
+ipcMain.handle('player-identity', async () => identities.info());
+ipcMain.handle('export-player-identity', async (_, passphrase) => {
+  const recovery = await identities.exportRecovery(String(passphrase || ''));
+  const result = await dialog.showSaveDialog(mainWindow, { title: 'Save encrypted Swirl identity recovery', defaultPath: 'Swirl-player-identity.swirlidentity', filters: [{ name: 'Swirl identity recovery', extensions: ['swirlidentity'] }] });
+  if (result.canceled || !result.filePath) return { saved: false };
+  await engine.atomicWrite(result.filePath, recovery); return { saved: true, file: result.filePath };
+});
+ipcMain.handle('import-player-identity', async (_, passphrase) => {
+  if (activeGame) throw new Error('Close Minecraft before restoring an identity.');
+  const result = await dialog.showOpenDialog(mainWindow, { title: 'Open Swirl identity recovery', properties: ['openFile'], filters: [{ name: 'Swirl identity recovery', extensions: ['swirlidentity', 'json'] }] });
+  if (result.canceled || !result.filePaths[0]) return { imported: false };
+  const stat = await fsp.stat(result.filePaths[0]); if (stat.size > 1024 * 1024) throw new Error('That recovery file is too large.');
+  return { imported: true, identity: await identities.importRecovery(await fsp.readFile(result.filePaths[0], 'utf8'), String(passphrase || '')) };
+});
 ipcMain.handle('fetch-versions', async () => {
   const cacheFile = path.join(engine.root, 'version-manifest-cache.json');
   let manifest; let fabricVersions;
@@ -145,11 +169,24 @@ ipcMain.handle('fetch-versions', async () => {
     .sort((left, right) => compareVersionIds(left.id, right.id));
 });
 ipcMain.handle('launch-game', async (_, profile, versionId, modProfile) => {
+  if (gameLaunchPending) throw new Error('Minecraft is already starting.');
+  if (activeGame) throw new Error('Minecraft is already running. Close it before playing again.');
   versionId = requireVersion(versionId);
   if (!modProfile || !modProfile.id) throw new Error('Choose a profile before launching.');
   requireProfileId(modProfile.id);
-  const username = String(profile?.username || '').trim(); if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) throw new Error('Choose a player name before launching.'); return engine.launchGame(username, versionId, { uuid: offlineUuid(username), accessToken: 'swirl-offline' }, modProfile);
+  const username = String(profile?.username || '').trim();
+  if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) throw new Error('Choose a player name before launching.');
+  gameLaunchPending = true;
+  let broker;
+  try {
+    broker = await identities.startBroker(username, modProfile.enrollmentToken || '');
+    const launched = await engine.launchGame(username, versionId, { uuid: offlineUuid(username), accessToken: 'swirl-offline', swirlIdentity: broker }, modProfile);
+    activeGame = { pid: launched.pid, versionId, profileId: modProfile.id, brokerId: broker.id, startedAt: new Date().toISOString() };
+    return launched;
+  } catch (error) { if (broker?.id) identities.closeBroker(broker.id); throw error; }
+  finally { gameLaunchPending = false; }
 });
+ipcMain.handle('game-status', async () => ({ starting: gameLaunchPending, running: Boolean(activeGame), ...(activeGame || {}) }));
 ipcMain.handle('search-mods', async (_, query, gameVersion = '26.2') => engine.searchModrinthMods(String(query || '').slice(0, 100), requireVersion(gameVersion)));
 ipcMain.handle('featured-mods', async (_, gameVersion = '26.2') => engine.getFeaturedModrinthMods(requireVersion(gameVersion)));
 ipcMain.handle('install-mod', async (_, projectId, gameVersion, profileId) => engine.installModrinthMod(String(projectId), requireVersion(gameVersion), new Set(), '', requireProfileId(profileId)));
@@ -201,7 +238,7 @@ ipcMain.handle('apply-launcher-update', async () => { const result = await updat
 ipcMain.handle('launcher-healthy', async () => updates.markHealthy());
 ipcMain.handle('fabric-loaders', async (_, gameVersion) => engine.getFabricLoaders(requireVersion(gameVersion)));
 ipcMain.handle('servers', async () => servers.list());
-ipcMain.handle('create-server', async (_, name, version, port, options = {}) => servers.create(name, requireVersion(version), port, { template: String(options?.template || 'friends'), whitelist: options?.whitelist === true, acceptEula: options?.acceptEula === true, memoryMb: Number(options?.memoryMb), hostName: String(options?.hostName || '') }));
+ipcMain.handle('create-server', async (_, name, version, port, options = {}) => servers.create(name, requireVersion(version), port, { template: String(options?.template || 'friends'), whitelist: options?.whitelist === true, acceptEula: options?.acceptEula === true, memoryMb: Number(options?.memoryMb), hostName: String(options?.hostName || ''), hostIdentity: await identities.info() }));
 ipcMain.handle('start-server', async (_, id) => servers.start(requireProfileId(id)));
 ipcMain.handle('stop-server', async (_, id) => servers.stop(requireProfileId(id)));
 ipcMain.handle('server-command', async (_, id, command) => servers.command(requireProfileId(id), command));

@@ -17,6 +17,7 @@ public final class SwirlClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        SwirlIdentityClient.initialize();
         openMenu = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.swirl_client.open_menu",
             GLFW.GLFW_KEY_RIGHT_SHIFT,

@@ -4,9 +4,10 @@
   "version": "${version}",
   "name": "Swirl Client",
   "description": "The in-game menu for Swirl profiles.",
-  "environment": "client",
+  "environment": "*",
   "entrypoints": {
-    "client": ["app.swirl.client.SwirlClient"]
+    "client": ["app.swirl.client.SwirlClient"],
+    "main": ["app.swirl.server.SwirlIdentityServer"]
   },
   "depends": {
     "fabricloader": ">=0.19.3",

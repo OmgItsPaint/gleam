@@ -201,6 +201,10 @@ class IcecreamEngine {
     if (!Array.isArray(invite.addresses) || !invite.addresses.length || !Number.isInteger(Number(invite.port)) || Number(invite.port) < 1 || Number(invite.port) > 65535) throw new Error('This invite has no valid server address.');
     if (!Array.isArray(invite.mods) || invite.mods.length > 500) throw new Error('This invite has an invalid mod list.');
     if (typeof invite.publicKey !== 'string' || invite.publicKey.length > 10000) throw new Error('This invite has no signing key.');
+    if (invite.authentication) {
+      if (invite.authentication.protocol !== 1 || typeof invite.authentication.enrollmentToken !== 'string' || !/^[A-Za-z0-9_-]{40,80}$/.test(invite.authentication.enrollmentToken)) throw new Error('This invite has invalid player enrollment data.');
+      if (Date.parse(invite.authentication.expiresAt || 0) <= Date.now()) throw new Error('This player enrollment invite expired. Ask the host to copy a fresh invite.');
+    }
     let validSignature = false;
     try { validSignature = crypto.verify(null, Buffer.from(parts[1]), invite.publicKey, Buffer.from(parts[2], 'base64url')); } catch {}
     if (!validSignature) throw new Error('This server invite was changed or damaged. Ask the host for a new invite.');
@@ -218,7 +222,7 @@ class IcecreamEngine {
   async importServerInvite(code) {
     const invite = await this.parseServerInvite(code);
     const id = crypto.randomBytes(8).toString('hex');
-    const profile = { id, name: `${String(invite.name || 'Swirl server').slice(0, 32)} server`, gameVersion: invite.gameVersion, fabricLoaderVersion: typeof invite.loaderVersion === 'string' ? invite.loaderVersion : '', autoSync: false, createdAt: new Date().toISOString(), mods: [], serverAddress: invite.joinAddress, serverId: String(invite.serverId || ''), serverFingerprint: invite.fingerprint, serverRequiredMods: invite.mods.map(mod => ({ projectId: mod.projectId, versionId: mod.versionId, sha512: mod.sha512 || '' })) };
+    const profile = { id, name: `${String(invite.name || 'Swirl server').slice(0, 32)} server`, gameVersion: invite.gameVersion, fabricLoaderVersion: typeof invite.loaderVersion === 'string' ? invite.loaderVersion : '', autoSync: false, createdAt: new Date().toISOString(), mods: [], serverAddress: invite.joinAddress, serverId: String(invite.serverId || ''), serverFingerprint: invite.fingerprint, identityRequired: invite.authentication?.required === true, enrollmentToken: String(invite.authentication?.enrollmentToken || ''), serverRequiredMods: invite.mods.map(mod => ({ projectId: mod.projectId, versionId: mod.versionId, sha512: mod.sha512 || '' })) };
     const profiles = await this.getModProfiles();
     const target = this.instanceDirectory(profile.gameVersion, id);
     try {
@@ -494,15 +498,22 @@ class IcecreamEngine {
     const memoryGiB = this.memoryGiB(); const gc = requiredJava >= 25 && this.javaSupports(java, ['-XX:+UseZGC']) ? ['-XX:+UseZGC'] : ['-XX:+UseG1GC'];
     const metadataJvm = [...this.resolveArguments(version.arguments?.jvm, variables, features), ...this.resolveArguments(fabric.arguments?.jvm, variables, features)];
     const jvm = [`-Xms${Math.min(1, memoryGiB)}G`, `-Xmx${memoryGiB}G`, ...gc, '-XX:+DisableExplicitGC', '-Dlog4j2.formatMsgNoLookups=true', ...metadataJvm];
+    if (profile.swirlIdentity) {
+      jvm.push(`-Dswirl.identity.port=${profile.swirlIdentity.port}`);
+      jvm.push(`-Dswirl.identity.token=${profile.swirlIdentity.token}`);
+      jvm.push(`-Dswirl.identity.publicKey=${profile.swirlIdentity.publicKey}`);
+      jvm.push(`-Dswirl.identity.fingerprint=${profile.swirlIdentity.fingerprint}`);
+      jvm.push(`-Dswirl.identity.playerName=${username}`);
+    }
     if (!jvm.some(argument => argument.startsWith('-Djava.library.path='))) jvm.push(`-Djava.library.path=${nativesDir}`);
     if (!jvm.includes('-cp') && !jvm.includes('-classpath')) jvm.push('-cp', variables.classpath);
     if (version.logging?.client?.argument && version.logging.client.file) jvm.push(this.substitute(version.logging.client.argument, { path: path.join(assetsDir, 'log_configs', version.logging.client.file.id) }));
     let game = [...this.resolveArguments(version.arguments?.game, variables, features), ...this.resolveArguments(fabric.arguments?.game, variables, features)];
     if (!game.length) game = ['--username', username, '--version', fabric.id, '--gameDir', gameDir, '--assetsDir', assetsDir, '--assetIndex', version.assetIndex.id, '--uuid', variables.auth_uuid, '--accessToken', variables.auth_access_token, '--userType', 'msa', '--versionType', version.type];
     if (directServer && isCalendarRelease(versionId) && !game.includes('--quickPlayMultiplayer')) game.push('--quickPlayMultiplayer', directServer);
-    const crashDirectory = path.join(this.root, 'crash-reports'); await this.ensure(crashDirectory); const stamp = new Date().toISOString().replace(/[:.]/g, '-'); const logFile = path.join(crashDirectory, `${stamp}-${versionId}.log`); const reportFile = path.join(crashDirectory, `${stamp}-${versionId}.json`); const logStream = fs.createWriteStream(logFile, { flags: 'a' }); const command = [...jvm, fabric.mainClass, ...game]; const safeCommand = [java, ...command].map((part, index, all) => all[index - 1] === '--accessToken' ? '<redacted>' : part); await this.atomicWrite(reportFile, JSON.stringify({ startedAt: new Date().toISOString(), minecraftVersion: versionId, fabricVersion: fabric.id, java, javaMajor: requiredJava, memoryGiB, garbageCollector: gc[0], gameDirectory: gameDir, profile: modProfile ? { id: modProfile.id, name: modProfile.name } : null, mods: compatibility.checked, command: safeCommand }, null, 2));
+    const crashDirectory = path.join(this.root, 'crash-reports'); await this.ensure(crashDirectory); const stamp = new Date().toISOString().replace(/[:.]/g, '-'); const logFile = path.join(crashDirectory, `${stamp}-${versionId}.log`); const reportFile = path.join(crashDirectory, `${stamp}-${versionId}.json`); const logStream = fs.createWriteStream(logFile, { flags: 'a' }); const command = [...jvm, fabric.mainClass, ...game]; const safeCommand = [java, ...command].map((part, index, all) => all[index - 1] === '--accessToken' || String(part).startsWith('-Dswirl.identity.token=') ? '<redacted>' : part); await this.atomicWrite(reportFile, JSON.stringify({ startedAt: new Date().toISOString(), minecraftVersion: versionId, fabricVersion: fabric.id, java, javaMajor: requiredJava, memoryGiB, garbageCollector: gc[0], gameDirectory: gameDir, profile: modProfile ? { id: modProfile.id, name: modProfile.name } : null, mods: compatibility.checked, command: safeCommand }, null, 2));
     this.emit('launch', 'Starting Fabric Minecraft'); const child = spawn(java, command, { cwd: gameDir, detached: true, stdio: ['ignore', logStream, logStream] }); child.unref();
-    child.on('error', error => this.emit('error', error.message)); child.on('exit', (code, signal) => { logStream.end(); if (code && code !== 0) this.emit('error', `Minecraft closed unexpectedly. Crash details: ${reportFile}`); }); return { pid: child.pid, gameDir, java, crashReport: reportFile };
+    child.on('error', error => { this.emit('error', error.message); this.progress({ stage: 'game-exit', message: 'Minecraft could not start.', pid: child.pid, code: null }); }); child.on('exit', (code, signal) => { logStream.end(); if (code && code !== 0) this.emit('error', `Minecraft closed unexpectedly. Crash details: ${reportFile}`); this.progress({ stage: 'game-exit', message: code && code !== 0 ? 'Minecraft closed unexpectedly.' : 'Minecraft closed.', pid: child.pid, code, signal }); }); return { pid: child.pid, gameDir, java, crashReport: reportFile };
   }
 }
 module.exports = IcecreamEngine;

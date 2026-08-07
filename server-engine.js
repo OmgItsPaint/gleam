@@ -32,6 +32,9 @@ class IcecreamServerEngine {
   backupRoot(id) { return path.join(this.root, 'backups', id); }
   modsManifest(id) { return path.join(this.modsDir(id), 'swirl-server-mods.json'); }
   lockFile(id) { return path.join(this.dir(id), 'swirl-server.lock.json'); }
+  identitiesFile(id) { return path.join(this.dir(id), 'swirl-identities.json'); }
+  enrollmentFile(id) { return path.join(this.dir(id), 'swirl-enrollment-tokens.json'); }
+  identityConfigFile(id) { return path.join(this.dir(id), 'swirl-server-identity.json'); }
   logFile(id) { return path.join(this.dir(id), 'logs', 'icecream-host.log'); }
   state(id, state, message = '') {
     this.states.set(id, { state, message, updatedAt: new Date().toISOString() });
@@ -57,6 +60,26 @@ class IcecreamServerEngine {
     finally { await handle.close(); }
     try { await fsp.rename(temporary, file); }
     catch (error) { await fsp.rm(temporary, { force: true }).catch(() => {}); throw error; }
+  }
+  async identityRecords(id) {
+    try {
+      const value = JSON.parse(await fsp.readFile(this.identitiesFile(id), 'utf8'));
+      return { format: 1, approved: Array.isArray(value.approved) ? value.approved : [], pending: Array.isArray(value.pending) ? value.pending : [] };
+    } catch (error) { if (error.code === 'ENOENT') return { format: 1, approved: [], pending: [] }; throw new Error('The server player identity list is damaged. Restore a backup before changing players.'); }
+  }
+  async issueEnrollmentToken(id) {
+    const token = crypto.randomBytes(32).toString('base64url'); const digest = crypto.createHash('sha256').update(token).digest('hex');
+    let records = []; try { records = JSON.parse(await fsp.readFile(this.enrollmentFile(id), 'utf8')); } catch {}
+    const now = Date.now(); records = (Array.isArray(records) ? records : []).filter(item => Number(item.expiresAt) > now && item.used !== true);
+    records.push({ digest, createdAt: now, expiresAt: now + 24 * 60 * 60 * 1000, used: false });
+    await this.atomicWrite(this.enrollmentFile(id), JSON.stringify(records, null, 2)); return token;
+  }
+  async ensureBundledServerMod(server) {
+    const source = path.join(__dirname, 'bundled-mods', `swirl-client-${server.version}.jar`);
+    if (!fs.existsSync(source)) return false;
+    const destination = path.join(this.modsDir(server.id), `swirl-client-${server.version}.jar`);
+    if (!fs.existsSync(destination) || await this.hashFile(source, 'sha256') !== await this.hashFile(destination, 'sha256')) await fsp.copyFile(source, destination);
+    return true;
   }
   async ensureDiskSpace(directory, neededBytes, purpose) { if (typeof fsp.statfs !== 'function') return; try { await fsp.mkdir(directory, { recursive: true }); const stats = await fsp.statfs(directory); const free = Number(stats.bavail) * Number(stats.bsize); if (Number.isFinite(free) && free < neededBytes) throw new Error(`Not enough free disk space to ${purpose}. Free at least ${Math.ceil((neededBytes - free) / 1024 / 1024)} MB and try again.`); } catch (error) { if (/Not enough free disk space/.test(error.message)) throw error; } }
   offlineUuid(name) {
@@ -156,7 +179,7 @@ class IcecreamServerEngine {
   async planModUpdates(id) { const server = (await this.rawList()).find(item => item.id === id); if (!server) throw new Error('Server not found.'); const installed = await this.installedMods(id); const plan = []; for (const mod of installed) { const versions = await this.modVersions(mod.projectId, server.version); const latest = versions.find(item => item.version_type === 'release') || versions[0]; if (latest && latest.id !== mod.versionId) plan.push({ projectId: mod.projectId, name: mod.name || latest.name || mod.projectId, fromVersion: mod.versionNumber || mod.versionId, toVersion: latest.version_number || latest.name || latest.id, toVersionId: latest.id }); } return plan.sort((a, b) => a.name.localeCompare(b.name)); }
   async updateMods(id) { if (this.running.has(id)) throw new Error('Stop the server before updating mods.'); return this.withServerLock(id, async () => { const plan = await this.planModUpdates(id); if (!plan.length) return []; const snapshot = await this.backup(id, this.backupRetention, true); try { const updated = []; for (const item of plan) { await this.installMod(id, item.projectId, item.toVersionId, new Set(), true); updated.push(item.name); } return updated; } catch (error) { await this.restoreBackup(id, path.basename(snapshot.destination), true).catch(() => {}); throw new Error(`Updates were rolled back: ${error.message}`); } }); }
   async writeLock(id) { const server = (await this.rawList()).find(item => item.id === id); if (!server) throw new Error('Server not found.'); const mods = await this.installedMods(id); const locked = []; for (const mod of mods) { const file = path.join(this.modsDir(id), mod.file); if (!fs.existsSync(file)) throw new Error(`Missing server mod file: ${mod.file}`); locked.push({ ...mod, sha512: mod.sha512 || await this.hashFile(file) }); } let loader = {}; try { loader = JSON.parse(await fsp.readFile(path.join(this.dir(id), 'swirl-loader.json'), 'utf8')); } catch {} const lock = { format: 2, serverId: id, gameVersion: server.version, loaderVersion: loader.loaderVersion || '', generatedAt: new Date().toISOString(), mods: locked.sort((a, b) => a.projectId.localeCompare(b.projectId)) }; await this.atomicWrite(this.lockFile(id), JSON.stringify(lock, null, 2)); return lock; }
-  async verifyLock(id) { if (!fs.existsSync(this.lockFile(id))) return this.writeLock(id); const lock = JSON.parse(await fsp.readFile(this.lockFile(id), 'utf8')); const server = (await this.rawList()).find(item => item.id === id); const mods = await this.installedMods(id); if (lock.gameVersion !== server.version || lock.mods?.length !== mods.length) throw new Error('The server mod lockfile does not match this server.'); let loader = {}; try { loader = JSON.parse(await fsp.readFile(path.join(this.dir(id), 'swirl-loader.json'), 'utf8')); } catch {} if (lock.loaderVersion && loader.loaderVersion && lock.loaderVersion !== loader.loaderVersion) throw new Error('The Fabric Loader pin does not match the server lockfile. Restore the original loader or a backup.'); const managed = new Set(mods.map(mod => mod.file)); const unmanaged = (await fsp.readdir(this.modsDir(id)).catch(() => [])).filter(name => name.toLowerCase().endsWith('.jar') && !managed.has(name)); if (unmanaged.length) throw new Error(`Unmanaged server mod files are not allowed: ${unmanaged.join(', ')}. Add them through Manage mods.`); for (const mod of mods) { const pinned = lock.mods.find(item => item.projectId === mod.projectId); if (!pinned || pinned.versionId !== mod.versionId || await this.hashFile(path.join(this.modsDir(id), mod.file)) !== pinned.sha512) throw new Error(`${mod.name || mod.projectId} does not match the server lockfile.`); } if (!lock.loaderVersion && loader.loaderVersion) { lock.loaderVersion = loader.loaderVersion; await this.atomicWrite(this.lockFile(id), JSON.stringify(lock, null, 2)); } return lock; }
+  async verifyLock(id) { if (!fs.existsSync(this.lockFile(id))) return this.writeLock(id); const lock = JSON.parse(await fsp.readFile(this.lockFile(id), 'utf8')); const server = (await this.rawList()).find(item => item.id === id); const mods = await this.installedMods(id); if (lock.gameVersion !== server.version || lock.mods?.length !== mods.length) throw new Error('The server mod lockfile does not match this server.'); let loader = {}; try { loader = JSON.parse(await fsp.readFile(path.join(this.dir(id), 'swirl-loader.json'), 'utf8')); } catch {} if (lock.loaderVersion && loader.loaderVersion && lock.loaderVersion !== loader.loaderVersion) throw new Error('The Fabric Loader pin does not match the server lockfile. Restore the original loader or a backup.'); const managed = new Set(mods.map(mod => mod.file)); const unmanaged = (await fsp.readdir(this.modsDir(id)).catch(() => [])).filter(name => name.toLowerCase().endsWith('.jar') && !managed.has(name) && !/^swirl-client-.*\.jar$/i.test(name)); if (unmanaged.length) throw new Error(`Unmanaged server mod files are not allowed: ${unmanaged.join(', ')}. Add them through Manage mods.`); for (const mod of mods) { const pinned = lock.mods.find(item => item.projectId === mod.projectId); if (!pinned || pinned.versionId !== mod.versionId || await this.hashFile(path.join(this.modsDir(id), mod.file)) !== pinned.sha512) throw new Error(`${mod.name || mod.projectId} does not match the server lockfile.`); } if (!lock.loaderVersion && loader.loaderVersion) { lock.loaderVersion = loader.loaderVersion; await this.atomicWrite(this.lockFile(id), JSON.stringify(lock, null, 2)); } return lock; }
 
   async list() {
     try {
@@ -217,6 +240,10 @@ class IcecreamServerEngine {
       await fsp.writeFile(path.join(directory, 'eula.txt'), 'eula=true\n', 'utf8');
       await fsp.writeFile(path.join(directory, 'mods', 'README.txt'), `Fabric server mods for Minecraft ${version} only. Do not add client-only mods or files for another Minecraft version.\n`, 'utf8');
       await fsp.writeFile(path.join(directory, 'mods', 'swirl-server-mods.json'), '[]', 'utf8');
+      const initialIdentity = hostName && /^[a-f0-9]{64}$/.test(String(options.hostIdentity?.fingerprint || '')) && typeof options.hostIdentity?.publicKey === 'string' ? [{ name: hostName, fingerprint: options.hostIdentity.fingerprint, publicKey: options.hostIdentity.publicKey, approvedAt: new Date().toISOString() }] : [];
+      await this.atomicWrite(path.join(directory, 'swirl-identities.json'), JSON.stringify({ format: 1, approved: initialIdentity, pending: [] }, null, 2));
+      await this.atomicWrite(path.join(directory, 'swirl-enrollment-tokens.json'), '[]');
+      await this.atomicWrite(path.join(directory, 'swirl-server-identity.json'), JSON.stringify({ format: 1, serverId: id, requireIdentity: true }, null, 2));
       await fsp.writeFile(path.join(directory, 'server.properties'), [
         'motd=Swirl private server', `server-port=${number}`, 'online-mode=false', `white-list=${whitelist}`, `enforce-whitelist=${whitelist}`,
         'enforce-secure-profile=false', 'max-players=12', `gamemode=${templateProperties.gamemode}`, `difficulty=${templateProperties.difficulty}`, `pvp=${templateProperties.pvp}`, `enable-command-block=${templateProperties.commandBlocks}`, `view-distance=${templateProperties.viewDistance}`, `simulation-distance=${templateProperties.simulationDistance}`, 'sync-chunk-writes=true', 'network-compression-threshold=256'
@@ -267,10 +294,14 @@ class IcecreamServerEngine {
     if (this.running.has(id)) throw new Error('That server is already running.');
     const allServers = await this.rawList(); this.cachedServers = allServers; const server = allServers.find(item => item.id === id);
     if (!server) throw new Error('Server not found.');
-    if (server.whitelist && !(await this.approvedPlayers(id)).length) throw new Error('This server uses an approved-name list, but the list is empty. Open Players and add your name before starting.');
+    if (server.whitelist && !(await this.approvedPlayers(id)).some(player => player.status === 'approved')) throw new Error('This server uses an approved-player list, but nobody is approved. Open Players and approve your own identity before starting.');
     await this.ensureDiskSpace(this.dir(id), 1024 * 1024 * 1024, 'prepare and run the server');
     const safeBudget = Math.max(2048, Math.floor(os.totalmem() / 1024 / 1024) - 2048); if (this.allocatedMemory(id) + Number(server.memoryMb || 0) > safeBudget) throw new Error(`Starting this server would reserve more than the safe memory budget (${Math.floor(safeBudget / 1024)} GB). Stop another server or lower its memory.`);
-    await this.ensurePortFree(server.port); const pinned = await this.ensureLoaderPin(server); await this.verifyLock(id);
+    await this.ensurePortFree(server.port); const pinned = await this.ensureLoaderPin(server);
+    const bundledIdentity = await this.ensureBundledServerMod(server);
+    if (bundledIdentity && !(await this.installedMods(id)).some(mod => mod.projectId === 'P7dR8mSH')) await this.installMod(id, 'P7dR8mSH', '', new Set(), true);
+    await this.atomicWrite(this.identityConfigFile(id), JSON.stringify({ format: 1, serverId: id, requireIdentity: bundledIdentity }, null, 2));
+    await this.verifyLock(id);
     const directory = this.dir(id); this.state(id, 'downloading', 'Checking Fabric server files…');
     try {
       const upgradeBackup = await this.ensureWorldUpgradeBackup(server);
@@ -325,15 +356,24 @@ class IcecreamServerEngine {
     try { whitelist = JSON.parse(await fsp.readFile(path.join(directory, 'whitelist.json'), 'utf8')); } catch {}
     try { operators = JSON.parse(await fsp.readFile(path.join(directory, 'ops.json'), 'utf8')); } catch {}
     const operatorNames = new Set((Array.isArray(operators) ? operators : []).map(item => String(item.name || '').toLowerCase()));
-    return (Array.isArray(whitelist) ? whitelist : []).filter(item => item && typeof item.name === 'string').map(item => ({ name: item.name, uuid: item.uuid || this.offlineUuid(item.name), operator: operatorNames.has(item.name.toLowerCase()) })).sort((a, b) => a.name.localeCompare(b.name));
+    const identities = await this.identityRecords(id); const byName = new Map();
+    for (const item of Array.isArray(whitelist) ? whitelist : []) if (item && typeof item.name === 'string') byName.set(item.name.toLowerCase(), { name: item.name, uuid: item.uuid || this.offlineUuid(item.name), operator: operatorNames.has(item.name.toLowerCase()), verified: false, status: 'approved' });
+    for (const item of identities.approved) if (item?.name && item?.fingerprint) byName.set(item.name.toLowerCase(), { ...byName.get(item.name.toLowerCase()), ...item, operator: operatorNames.has(item.name.toLowerCase()), verified: true, status: 'approved' });
+    for (const item of identities.pending) if (item?.name && item?.fingerprint && !byName.has(item.name.toLowerCase())) byName.set(`pending:${item.fingerprint}`, { ...item, operator: false, verified: true, status: 'pending' });
+    return [...byName.values()].sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'pending' ? -1 : 1));
   }
   async setApprovedPlayer(id, name, approved = true, operator = false, locked = false) { if (!locked) return this.withServerLock(id, () => this.setApprovedPlayer(id, name, approved, operator, true));
     const server = (await this.rawList()).find(item => item.id === id); if (!server) throw new Error('Server not found.');
     const player = this.validatePlayerName(name); const child = this.running.get(id);
+    const identityRecords = await this.identityRecords(id); const pending = identityRecords.pending.filter(item => String(item.name || '').toLowerCase() === player.toLowerCase()); const existingIdentity = identityRecords.approved.find(item => String(item.name || '').toLowerCase() === player.toLowerCase());
+    identityRecords.pending = identityRecords.pending.filter(item => String(item.name || '').toLowerCase() !== player.toLowerCase());
+    identityRecords.approved = identityRecords.approved.filter(item => String(item.name || '').toLowerCase() !== player.toLowerCase());
+    if (approved && (pending[0] || existingIdentity)) identityRecords.approved.push({ ...(pending[0] || existingIdentity), approvedAt: existingIdentity?.approvedAt || new Date().toISOString() });
+    await this.atomicWrite(this.identitiesFile(id), JSON.stringify(identityRecords, null, 2));
     if (child) {
       this.command(id, `${approved ? 'whitelist add' : 'whitelist remove'} ${player}`);
       this.command(id, `${operator && approved ? 'op' : 'deop'} ${player}`);
-      return { name: player, approved: Boolean(approved), operator: Boolean(operator && approved), pending: true };
+      return { name: player, approved: Boolean(approved), operator: Boolean(operator && approved), pending: true, verified: Boolean(pending[0]) };
     }
     const whitelistFile = path.join(this.dir(id), 'whitelist.json'); const opsFile = path.join(this.dir(id), 'ops.json');
     let whitelist = []; let operators = []; try { whitelist = JSON.parse(await fsp.readFile(whitelistFile, 'utf8')); } catch {} try { operators = JSON.parse(await fsp.readFile(opsFile, 'utf8')); } catch {}
@@ -341,15 +381,15 @@ class IcecreamServerEngine {
     operators = Array.isArray(operators) ? operators.filter(item => String(item?.name || '').toLowerCase() !== player.toLowerCase()) : [];
     const uuid = this.offlineUuid(player); if (approved) whitelist.push({ uuid, name: player }); if (approved && operator) operators.push({ uuid, name: player, level: 4, bypassesPlayerLimit: false });
     await Promise.all([this.atomicWrite(whitelistFile, JSON.stringify(whitelist, null, 2)), this.atomicWrite(opsFile, JSON.stringify(operators, null, 2))]);
-    return { name: player, approved: Boolean(approved), operator: Boolean(approved && operator), pending: false };
+    return { name: player, approved: Boolean(approved), operator: Boolean(approved && operator), pending: false, verified: Boolean(pending[0]) };
   }
   async playerAction(id, name, action) { const player = this.validatePlayerName(name); if (!['kick', 'ban', 'pardon'].includes(action)) throw new Error('Choose a supported player action.'); if (!this.running.has(id)) throw new Error('Start the server before using live player controls.'); if (action === 'kick') this.command(id, `kick ${player} Removed by the host`); if (action === 'ban') { this.command(id, `ban ${player} Removed by the host`); this.command(id, `whitelist remove ${player}`); } if (action === 'pardon') this.command(id, `pardon ${player}`); return { name: player, action, pending: true }; }
   async clientRequirements(id) { const mods = await this.installedMods(id); const requirements = []; for (const mod of mods) { let clientSide = mod.clientSide || 'unknown'; if (clientSide === 'unknown') { try { clientSide = (await this.json(`${MODRINTH_API}/project/${encodeURIComponent(mod.projectId)}`)).client_side || 'unknown'; } catch {} } if (clientSide !== 'unsupported') requirements.push({ projectId: mod.projectId, versionId: mod.versionId, sha512: mod.sha512 || '', name: mod.name, required: clientSide === 'required', clientSide }); } return requirements; }
-  async exportInvite(id) { const server = (await this.rawList()).find(item => item.id === id); if (!server) throw new Error('Server not found.'); const pinned = await this.ensureLoaderPin(server); const lock = await this.writeLock(id); const addresses = this.lanAddresses().map(item => item.address); if (!addresses.length) throw new Error('No usable LAN address is available. Connect to Wi-Fi or Ethernet first.'); const publicKey = await fsp.readFile(path.join(this.dir(id), 'swirl-invite-public.pem'), 'utf8'); const payload = { format: 1, serverId: id, name: server.name, gameVersion: server.version, loaderVersion: pinned.loaderVersion || lock.loaderVersion || '', addresses, port: server.port, mods: await this.clientRequirements(id), publicKey, createdAt: new Date().toISOString() }; const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url'); const privateKey = await fsp.readFile(path.join(this.dir(id), '.swirl-invite-private.pem'), 'utf8'); const signature = crypto.sign(null, Buffer.from(encoded), privateKey).toString('base64url'); return `SWIRLSERVER1.${encoded}.${signature}`; }
+  async exportInvite(id) { const server = (await this.rawList()).find(item => item.id === id); if (!server) throw new Error('Server not found.'); const pinned = await this.ensureLoaderPin(server); const lock = await this.writeLock(id); const addresses = this.lanAddresses().map(item => item.address); if (!addresses.length) throw new Error('No usable LAN address is available. Connect to Wi-Fi or Ethernet first.'); const publicKey = await fsp.readFile(path.join(this.dir(id), 'swirl-invite-public.pem'), 'utf8'); const identityAvailable = fs.existsSync(path.join(__dirname, 'bundled-mods', `swirl-client-${server.version}.jar`)); const authentication = identityAvailable ? { protocol: 1, required: true, enrollmentToken: await this.issueEnrollmentToken(id), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() } : null; const payload = { format: 1, serverId: id, name: server.name, gameVersion: server.version, loaderVersion: pinned.loaderVersion || lock.loaderVersion || '', addresses, port: server.port, mods: await this.clientRequirements(id), publicKey, ...(authentication ? { authentication } : {}), createdAt: new Date().toISOString() }; const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url'); const privateKey = await fsp.readFile(path.join(this.dir(id), '.swirl-invite-private.pem'), 'utf8'); const signature = crypto.sign(null, Buffer.from(encoded), privateKey).toString('base64url'); return `SWIRLSERVER1.${encoded}.${signature}`; }
   async diagnose(id, clientVersion = '') {
     const server = (await this.rawList()).find(item => item.id === id); if (!server) throw new Error('Server not found.'); const checks = []; const runtime = this.states.get(id) || { state: 'stopped' };
     if (clientVersion && clientVersion !== server.version) checks.push({ id: 'version', level: 'fail', title: 'Minecraft versions differ', detail: `The server uses ${server.version}, but the selected Play version is ${clientVersion}.` }); else checks.push({ id: 'version', level: 'pass', title: 'Minecraft version matches', detail: `Use a ${server.version} profile to join.` });
-    if (server.whitelist) { const players = await this.approvedPlayers(id); checks.push({ id: 'players', level: players.length ? 'pass' : 'fail', title: players.length ? 'Approved-name list is ready' : 'Approved-name list is empty', detail: players.length ? `${players.length} name${players.length === 1 ? '' : 's'} can join. Offline names are not verified identities.` : 'Open Players and add your own name before starting.' }); }
+    if (server.whitelist) { const players = (await this.approvedPlayers(id)).filter(player => player.status === 'approved'); checks.push({ id: 'players', level: players.length ? 'pass' : 'fail', title: players.length ? 'Approved-player list is ready' : 'Approved-player list is empty', detail: players.length ? `${players.length} player identit${players.length === 1 ? 'y is' : 'ies are'} approved.` : 'Open Players and approve your own identity before starting.' }); }
     if (this.running.has(id)) { try { const response = await this.minecraftStatus('127.0.0.1', server.port); checks.push({ id: 'port', level: 'pass', title: 'Minecraft answers locally', detail: `${response.version?.name || server.version}; ${response.players?.online || 0}/${response.players?.max || '?'} players.` }); } catch (error) { checks.push({ id: 'port', level: 'fail', title: 'Minecraft is not answering yet', detail: `${error.message} The process is ${runtime.state}; wait for Ready or inspect the console.` }); } }
     else { try { await this.ensurePortFree(server.port); checks.push({ id: 'port', level: 'pass', title: 'Port is available', detail: `Port ${server.port} is free for this server.` }); } catch (error) { checks.push({ id: 'port', level: 'fail', title: 'Port conflict', detail: error.message }); } }
     const useful = this.lanAddresses();

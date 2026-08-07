@@ -1,8 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('icecream', {
   offlinePlayer: name => ipcRenderer.invoke('offline-player', name),
+  playerIdentity: () => ipcRenderer.invoke('player-identity'),
+  exportPlayerIdentity: passphrase => ipcRenderer.invoke('export-player-identity', passphrase),
+  importPlayerIdentity: passphrase => ipcRenderer.invoke('import-player-identity', passphrase),
   fetchVersions: () => ipcRenderer.invoke('fetch-versions'),
   launchGame: (profile, version, modProfile) => ipcRenderer.invoke('launch-game', profile, version, modProfile),
+  gameStatus: () => ipcRenderer.invoke('game-status'),
   searchMods: (query, version) => ipcRenderer.invoke('search-mods', query, version),
   featuredMods: version => ipcRenderer.invoke('featured-mods', version),
   installMod: (projectId, version, profileId) => ipcRenderer.invoke('install-mod', projectId, version, profileId),

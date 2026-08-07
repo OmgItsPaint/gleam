@@ -12,6 +12,7 @@ class IdentityService {
     this.root = path.join(appData, '.icecream_client', 'identity');
     this.safeStorage = safeStorage;
     this.cached = null;
+    this.recoveryNotice = null;
     this.brokers = new Map();
   }
 
@@ -46,18 +47,26 @@ class IdentityService {
     const publicKey = crypto.createPublicKey({ key: publicDer, format: 'der', type: 'spki' });
     if (!crypto.verify(null, test, publicKey, crypto.sign(null, test, privateKey))) throw new Error('The identity keypair does not match.');
   }
-  async get() {
-    if (this.cached) return this.cached;
-    try {
-      const stored = JSON.parse(await fsp.readFile(this.privateFile(), 'utf8'));
-      const privatePem = this.unprotect(stored);
-      const publicDer = Buffer.from(stored.publicKey, 'base64');
-      this.validate(privatePem, publicDer);
-      this.cached = { privatePem, publicDer, createdAt: stored.createdAt || new Date().toISOString() };
-      return this.cached;
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
+  async quarantineUnreadableIdentity(error) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const moved = [];
+    for (const file of [this.privateFile(), this.publicFile()]) {
+      try {
+        const backup = `${file}.unreadable-${stamp}.bak`;
+        await fsp.rename(file, backup);
+        moved.push(backup);
+      } catch (moveError) {
+        if (moveError.code !== 'ENOENT') throw moveError;
+      }
     }
+    this.recoveryNotice = {
+      reset: true,
+      message: 'Swirl replaced an identity that Windows could no longer unlock. Your profiles and player name are safe, but friends may need to approve this computer again.',
+      backups: moved,
+      reason: String(error?.message || error || 'Unreadable identity')
+    };
+  }
+  async create() {
     const pair = crypto.generateKeyPairSync('ed25519', {
       privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
       publicKeyEncoding: { type: 'spki', format: 'der' }
@@ -70,10 +79,32 @@ class IdentityService {
     this.cached = { privatePem: pair.privateKey, publicDer: pair.publicKey, createdAt };
     return this.cached;
   }
+  async get() {
+    if (this.cached) return this.cached;
+    let text;
+    try {
+      text = await fsp.readFile(this.privateFile(), 'utf8');
+    } catch (error) {
+      if (error.code === 'ENOENT') return this.create();
+      throw error;
+    }
+    try {
+      const stored = JSON.parse(text);
+      const privatePem = this.unprotect(stored);
+      const publicDer = Buffer.from(stored.publicKey, 'base64');
+      this.validate(privatePem, publicDer);
+      this.cached = { privatePem, publicDer, createdAt: stored.createdAt || new Date().toISOString() };
+      return this.cached;
+    } catch (error) {
+      if (!this.safeStorage?.isEncryptionAvailable() && /Windows could not unlock/.test(error.message)) throw error;
+      await this.quarantineUnreadableIdentity(error);
+      return this.create();
+    }
+  }
   async info() {
     const identity = await this.get();
     const record = this.publicRecord(identity.publicDer, identity.createdAt);
-    return { ...record, shortFingerprint: record.fingerprint.match(/.{1,4}/g).slice(0, 4).join('-'), osProtected: this.safeStorage?.isEncryptionAvailable() === true };
+    return { ...record, shortFingerprint: record.fingerprint.match(/.{1,4}/g).slice(0, 4).join('-'), osProtected: this.safeStorage?.isEncryptionAvailable() === true, recovery: this.recoveryNotice };
   }
   async exportRecovery(passphrase) {
     if (String(passphrase || '').length < 10) throw new Error('Use a recovery password with at least 10 characters.');

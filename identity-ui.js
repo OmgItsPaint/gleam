@@ -16,7 +16,7 @@
   async function refreshIdentity() {
     try {
       const identity = await window.icecream.playerIdentity();
-      byId('player-identity-summary').textContent = identity.osProtected ? 'Protected by your Windows sign-in.' : 'Protected by this computer’s file permissions.';
+      byId('player-identity-summary').textContent = identity.recovery?.message || (identity.osProtected ? 'Protected by your Windows sign-in.' : 'Protected by this computer’s file permissions.');
       byId('player-identity-fingerprint').textContent = identity.fingerprint.match(/.{1,4}/g).join(' ');
     } catch (error) { byId('player-identity-summary').textContent = error.message; }
   }
@@ -29,7 +29,7 @@
     try {
       const player = await window.icecream.offlinePlayer(normalized);
       localStorage.setItem('swirl-player-name', player.username);
-      draw(player.username); feedback.textContent = 'Saved.';
+      draw(player.username); feedback.textContent = player.identityRecovery?.message || 'Saved.';
       window.dispatchEvent(new CustomEvent('icecream-identity-change', { detail: player }));
       setTimeout(() => setOpen(false), 650);
     } catch (error) { feedback.textContent = error.message; input.focus(); }

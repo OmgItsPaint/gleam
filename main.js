@@ -124,7 +124,7 @@ ipcMain.handle('window-control', (_, action) => {
   if (action === 'minimize') mainWindow.minimize();
   if (action === 'close') mainWindow.close();
 });
-ipcMain.handle('offline-player', async (_, requestedName = '') => { const username = String(requestedName || '').trim() || `Swirl${crypto.randomInt(1000, 9999)}`; if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) throw new Error('Use 3–16 letters, numbers, or underscores for your player name.'); const identity = await identities.info(); return { username, uuid: offlineUuid(username), offline: true, identityFingerprint: identity.fingerprint }; });
+ipcMain.handle('offline-player', async (_, requestedName = '') => { const username = String(requestedName || '').trim() || `Swirl${crypto.randomInt(1000, 9999)}`; if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) throw new Error('Use 3–16 letters, numbers, or underscores for your player name.'); const identity = await identities.info(); return { username, uuid: offlineUuid(username), offline: true, identityFingerprint: identity.fingerprint, identityRecovery: identity.recovery || null }; });
 ipcMain.handle('player-identity', async () => identities.info());
 ipcMain.handle('export-player-identity', async (_, passphrase) => {
   const recovery = await identities.exportRecovery(String(passphrase || ''));

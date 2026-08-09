@@ -1,0 +1,8 @@
+node_modules/
+dist/
+qa-dist/
+coverage/
+.qa-*/
+.npm-cache/
+**/.gradle/
+**/build/

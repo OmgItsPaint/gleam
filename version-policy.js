@@ -1,3 +1,8 @@
+/**
+ * Central compatibility policy for accepted Minecraft versions and their fallback Java runtime.
+ * Keep UI admission, profile validation, and tests dependent on these helpers instead of copying
+ * version rules into multiple files.
+ */
 const LEGACY_RELEASE = /^1\.(\d+)(?:\.(\d+))?$/;
 const CALENDAR_RELEASE = /^(\d{2})\.(\d+)(?:\.(\d+))?$/;
 const CALENDAR_EXPERIMENTAL = /^26(?:(?:\.\d+){1,2}-(?:snapshot|pre|rc)-\d+|w\d{2}[a-z])$/;
@@ -43,8 +48,13 @@ function fallbackJavaMajor(version) {
 }
 
 function compareVersionIds(left, right) {
-  const tokens = value => String(value).split(/[^0-9]+/).filter(Boolean).map(Number);
-  const a = tokens(left); const b = tokens(right);
+  const tokens = (value) =>
+    String(value)
+      .split(/[^0-9]+/)
+      .filter(Boolean)
+      .map(Number);
+  const a = tokens(left);
+  const b = tokens(right);
   for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
     const difference = (b[index] || 0) - (a[index] || 0);
     if (difference) return difference;
@@ -59,5 +69,5 @@ module.exports = {
   isCalendarRelease,
   isExperimentalVersion,
   isStableSupportedVersion,
-  isSupportedVersion
+  isSupportedVersion,
 };

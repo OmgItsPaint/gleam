@@ -1,3 +1,4 @@
+/* Identity recovery controls and the readable public-key fingerprint shown for verification. */
 .identity-manage {
   width: 100%;
   margin-top: 10px;
@@ -8,7 +9,9 @@
   text-align: left;
   box-shadow: 4px 4px 0 #170d18;
 }
-.identity-manage:hover { background: #241425; }
+.identity-manage:hover {
+  background: #241425;
+}
 .identity-fingerprint {
   display: block;
   overflow-wrap: anywhere;

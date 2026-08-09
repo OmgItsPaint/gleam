@@ -1,24 +1,16 @@
-# Ignore every generated top-level folder by default
-/*/
-
-# Keep project source folders
-!/.github/
-!/.github/**
-!/assets/
-!/assets/**
-!/bundled-mods/
-!/bundled-mods/**
-!/swirl-mod/
-!/swirl-mod/**
-
-# Ignore generated content inside source folders
-**/.gradle/
-**/build/
+# Installed dependencies and generated builds
 node_modules/
 dist/
 qa-dist/
-.qa-electron-*/
+coverage/
+**/.gradle/
+**/build/
 Microsoft/
+
+# Local QA and formatter state
+.qa-*/
+.npm-cache/
+.prettiercache
 
 # Never upload credentials
 .env

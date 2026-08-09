@@ -1,4 +1,15 @@
-#hosts-view.server-running .host-console{min-height:560px}
-#hosts-view.server-running .host-create{display:block}
-#hosts-view.server-running .host-layout{grid-template-columns:minmax(310px,.86fr) minmax(0,1.35fr)}
-@media(max-width:850px){#hosts-view.server-running .host-layout{grid-template-columns:1fr}}
+/* Running-server emphasis: expands the active console and clarifies the stop action. */
+#hosts-view.server-running .host-console {
+  min-height: 560px;
+}
+#hosts-view.server-running .host-create {
+  display: block;
+}
+#hosts-view.server-running .host-layout {
+  grid-template-columns: minmax(310px, 0.86fr) minmax(0, 1.35fr);
+}
+@media (max-width: 850px) {
+  #hosts-view.server-running .host-layout {
+    grid-template-columns: 1fr;
+  }
+}

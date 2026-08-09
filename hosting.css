@@ -1,1 +1,202 @@
-#hosts-view{max-width:1120px}.host-warning{margin:0 0 17px;padding:12px 14px;border-left:3px solid #f0b658;background:#f0b65813;color:#f1d5a5;font-size:12px;line-height:1.55}.host-layout{display:grid;grid-template-columns:minmax(310px,.86fr) minmax(0,1.35fr);gap:18px}.host-create,.host-console,.host-running-summary{padding:18px;border:1px solid #f5bf6340;border-radius:14px;background:linear-gradient(135deg,#2b1c12d9,#120c09c9)}.host-create h3,.host-console h3{margin:0 0 7px;font-size:18px}.host-help{margin:0 0 14px;color:#d7c1a0;font-size:12px;line-height:1.5}.host-create .new-profile-form{display:grid;grid-template-columns:1fr 1fr;gap:9px}.host-create .new-profile-form input:first-child,.host-create .new-profile-form button,.host-check,.host-memory{grid-column:1/-1}.host-memory{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid #614323;border-radius:8px;color:#e4cfaa;font-size:12px}.host-memory select{padding:6px;border:1px solid #8c642e;border-radius:6px;background:#130d09;color:#f6d797}.host-check{display:flex;align-items:flex-start;gap:9px;padding:9px 10px;border:1px solid #614323;border-radius:8px;color:#e4cfaa;font-size:12px;line-height:1.4}.host-check input{accent-color:#e6a33d;margin-top:2px}.host-server-card{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin-top:10px;padding:14px;border:1px solid #f5bf6340;border-radius:12px;background:#1a110c}.host-server-card strong{display:block;font-size:16px}.host-server-card small{display:block;margin-top:5px;color:#f4ce8f;font:11px/1.35 ui-monospace,monospace}.host-server-card .host-state{color:#c9efd1}.host-server-card .host-state.error{color:#ffae9f}.host-server-card .host-state.starting{color:#f6d387}.host-server-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.danger-action{border:1px solid #bd5a43;background:#572217;color:#ffe0d3;padding:10px 14px;border-radius:8px;font-weight:700}.danger-action:hover{background:#76301f}.host-console{min-height:480px;display:flex;flex-direction:column}.host-console-heading{display:flex;justify-content:space-between;gap:12px;align-items:start;margin-bottom:10px}.host-console-heading h3{margin:0}.host-console-heading small{display:block;color:#d7c1a0;font-size:11px}.host-console pre{flex:1;min-height:310px;max-height:500px;margin:0;overflow:auto;border:1px solid #5e3b1d;border-radius:9px;padding:13px;background:#0d0907;color:#d9efdc;font:12px/1.5 ui-monospace,monospace;white-space:pre-wrap}.host-console .mod-search{margin-top:10px}.host-running-summary{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 17px;border-color:#e6ae4c}.host-running-summary strong,.host-running-summary small{display:block}.host-running-summary strong{font-size:20px;margin:4px 0}.host-running-summary small{color:#d9efdc;font:12px ui-monospace,monospace}@media(max-width:850px){.host-layout{grid-template-columns:1fr}.host-console{min-height:330px}.host-running-summary{align-items:flex-start;flex-direction:column}}
+/* Server profile layout, console, creation form, status cards, and responsive behavior. */
+#hosts-view {
+  max-width: 1120px;
+}
+.host-warning {
+  margin: 0 0 17px;
+  padding: 12px 14px;
+  border-left: 3px solid #f0b658;
+  background: #f0b65813;
+  color: #f1d5a5;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.host-layout {
+  display: grid;
+  grid-template-columns: minmax(310px, 0.86fr) minmax(0, 1.35fr);
+  gap: 18px;
+}
+.host-create,
+.host-console,
+.host-running-summary {
+  padding: 18px;
+  border: 1px solid #f5bf6340;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2b1c12d9, #120c09c9);
+}
+.host-create h3,
+.host-console h3 {
+  margin: 0 0 7px;
+  font-size: 18px;
+}
+.host-help {
+  margin: 0 0 14px;
+  color: #d7c1a0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.host-create .new-profile-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.host-create .new-profile-form input:first-child,
+.host-create .new-profile-form button,
+.host-check,
+.host-memory {
+  grid-column: 1/-1;
+}
+.host-memory {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid #614323;
+  border-radius: 8px;
+  color: #e4cfaa;
+  font-size: 12px;
+}
+.host-memory select {
+  padding: 6px;
+  border: 1px solid #8c642e;
+  border-radius: 6px;
+  background: #130d09;
+  color: #f6d797;
+}
+.host-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid #614323;
+  border-radius: 8px;
+  color: #e4cfaa;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.host-check input {
+  accent-color: #e6a33d;
+  margin-top: 2px;
+}
+.host-server-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid #f5bf6340;
+  border-radius: 12px;
+  background: #1a110c;
+}
+.host-server-card strong {
+  display: block;
+  font-size: 16px;
+}
+.host-server-card small {
+  display: block;
+  margin-top: 5px;
+  color: #f4ce8f;
+  font:
+    11px/1.35 ui-monospace,
+    monospace;
+}
+.host-server-card .host-state {
+  color: #c9efd1;
+}
+.host-server-card .host-state.error {
+  color: #ffae9f;
+}
+.host-server-card .host-state.starting {
+  color: #f6d387;
+}
+.host-server-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.danger-action {
+  border: 1px solid #bd5a43;
+  background: #572217;
+  color: #ffe0d3;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.danger-action:hover {
+  background: #76301f;
+}
+.host-console {
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+}
+.host-console-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 10px;
+}
+.host-console-heading h3 {
+  margin: 0;
+}
+.host-console-heading small {
+  display: block;
+  color: #d7c1a0;
+  font-size: 11px;
+}
+.host-console pre {
+  flex: 1;
+  min-height: 310px;
+  max-height: 500px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid #5e3b1d;
+  border-radius: 9px;
+  padding: 13px;
+  background: #0d0907;
+  color: #d9efdc;
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  white-space: pre-wrap;
+}
+.host-console .mod-search {
+  margin-top: 10px;
+}
+.host-running-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 17px;
+  border-color: #e6ae4c;
+}
+.host-running-summary strong,
+.host-running-summary small {
+  display: block;
+}
+.host-running-summary strong {
+  font-size: 20px;
+  margin: 4px 0;
+}
+.host-running-summary small {
+  color: #d9efdc;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+@media (max-width: 850px) {
+  .host-layout {
+    grid-template-columns: 1fr;
+  }
+  .host-console {
+    min-height: 330px;
+  }
+  .host-running-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

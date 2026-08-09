@@ -1,3 +1,139 @@
 /* Final interaction polish: keep toolbar controls stable and scrollbars on-brand. */
-.titlebar{overflow:visible}.top-actions{align-self:stretch;align-items:center}.top-actions button{min-height:54px;border-color:#f6c66b66!important;background:linear-gradient(180deg,#3b2919,#1c120c)!important;box-shadow:inset 1px 1px #fff0b51f,inset -1px -1px #050302,2px 2px 0 #0c0705!important}.top-actions button:hover,.top-actions button:focus-visible{transform:none!important;border-color:#ffe19a!important;background:linear-gradient(180deg,#4a321d,#21140c)!important;box-shadow:inset 1px 1px #fff4c042,inset -1px -1px #050302,2px 2px 0 #0c0705!important}.top-actions button:active{transform:translateY(1px)!important;box-shadow:inset 1px 1px #090503,inset -1px -1px #fff0b52b,1px 1px 0 #0c0705!important}.editor-sidebar-title .text-action{display:inline-flex;align-items:center;gap:7px;border:1px solid #f6c66b!important;border-radius:4px!important;padding:8px 10px!important;background:linear-gradient(180deg,#f6c76c,#d98535)!important;color:#2a170a!important;font-weight:800;box-shadow:inset 2px 2px #fff1b880,inset -2px -2px #7b3d0d66,3px 3px 0 #120a05!important}.editor-sidebar-title .text-action:before{content:"↻";font-size:16px;line-height:10px}.editor-sidebar-title .text-action:hover:not(:disabled){transform:translate(-1px,-1px)!important;filter:brightness(1.12);box-shadow:inset 2px 2px #fff1b880,inset -2px -2px #7b3d0d66,5px 5px 0 #120a05!important}.editor-sidebar-title .text-action:active:not(:disabled){transform:translate(2px,2px)!important;box-shadow:inset -1px -1px #fff1b880,inset 2px 2px #7b3d0d66,1px 1px 0 #120a05!important}::-webkit-scrollbar{width:11px;height:11px}::-webkit-scrollbar-track{background:#1a100a;border-left:1px solid #5e3b1d}::-webkit-scrollbar-thumb{border:2px solid #1a100a;border-radius:3px;background:linear-gradient(180deg,#f0b658,#a75a27);background-clip:padding-box}::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,#ffdc88,#c97032);background-clip:padding-box}.editor-sidebar{scrollbar-color:#d98b3e #1a100a}
-.launch-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}.launch-actions .secondary-action{width:auto;margin:0;white-space:nowrap}.swirl-dialog .dialog-actions{display:flex;justify-content:flex-end;gap:10px;align-items:center}.swirl-dialog .dialog-actions .secondary-action{width:auto;margin:0}.swirl-dialog .profile-code{min-height:130px}.host-server-actions .secondary-action,.host-server-actions .mod-install{width:auto;margin:0}.server-mod-item{grid-template-columns:1fr auto}#server-player-form{align-items:center}#server-player-form .host-check{grid-column:auto;margin:0;white-space:nowrap}@media(max-width:850px){.launch-actions{align-items:stretch;flex-direction:column}.launch-actions .secondary-action{width:100%}}
+.titlebar {
+  overflow: visible;
+}
+.top-actions {
+  align-self: stretch;
+  align-items: center;
+}
+.top-actions button {
+  min-height: 54px;
+  border-color: #f6c66b66 !important;
+  background: linear-gradient(180deg, #3b2919, #1c120c) !important;
+  box-shadow:
+    inset 1px 1px #fff0b51f,
+    inset -1px -1px #050302,
+    2px 2px 0 #0c0705 !important;
+}
+.top-actions button:hover,
+.top-actions button:focus-visible {
+  transform: none !important;
+  border-color: #ffe19a !important;
+  background: linear-gradient(180deg, #4a321d, #21140c) !important;
+  box-shadow:
+    inset 1px 1px #fff4c042,
+    inset -1px -1px #050302,
+    2px 2px 0 #0c0705 !important;
+}
+.top-actions button:active {
+  transform: translateY(1px) !important;
+  box-shadow:
+    inset 1px 1px #090503,
+    inset -1px -1px #fff0b52b,
+    1px 1px 0 #0c0705 !important;
+}
+.editor-sidebar-title .text-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #f6c66b !important;
+  border-radius: 4px !important;
+  padding: 8px 10px !important;
+  background: linear-gradient(180deg, #f6c76c, #d98535) !important;
+  color: #2a170a !important;
+  font-weight: 800;
+  box-shadow:
+    inset 2px 2px #fff1b880,
+    inset -2px -2px #7b3d0d66,
+    3px 3px 0 #120a05 !important;
+}
+.editor-sidebar-title .text-action:before {
+  content: '↻';
+  font-size: 16px;
+  line-height: 10px;
+}
+.editor-sidebar-title .text-action:hover:not(:disabled) {
+  transform: translate(-1px, -1px) !important;
+  filter: brightness(1.12);
+  box-shadow:
+    inset 2px 2px #fff1b880,
+    inset -2px -2px #7b3d0d66,
+    5px 5px 0 #120a05 !important;
+}
+.editor-sidebar-title .text-action:active:not(:disabled) {
+  transform: translate(2px, 2px) !important;
+  box-shadow:
+    inset -1px -1px #fff1b880,
+    inset 2px 2px #7b3d0d66,
+    1px 1px 0 #120a05 !important;
+}
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-track {
+  background: #1a100a;
+  border-left: 1px solid #5e3b1d;
+}
+::-webkit-scrollbar-thumb {
+  border: 2px solid #1a100a;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f0b658, #a75a27);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ffdc88, #c97032);
+  background-clip: padding-box;
+}
+.editor-sidebar {
+  scrollbar-color: #d98b3e #1a100a;
+}
+.launch-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.launch-actions .secondary-action {
+  width: auto;
+  margin: 0;
+  white-space: nowrap;
+}
+.swirl-dialog .dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  align-items: center;
+}
+.swirl-dialog .dialog-actions .secondary-action {
+  width: auto;
+  margin: 0;
+}
+.swirl-dialog .profile-code {
+  min-height: 130px;
+}
+.host-server-actions .secondary-action,
+.host-server-actions .mod-install {
+  width: auto;
+  margin: 0;
+}
+.server-mod-item {
+  grid-template-columns: 1fr auto;
+}
+#server-player-form {
+  align-items: center;
+}
+#server-player-form .host-check {
+  grid-column: auto;
+  margin: 0;
+  white-space: nowrap;
+}
+@media (max-width: 850px) {
+  .launch-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .launch-actions .secondary-action {
+    width: 100%;
+  }
+}

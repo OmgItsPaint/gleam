@@ -27,8 +27,9 @@
     "release:artifacts": "npm run sbom && node tools/release/release-artifacts.js"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.4",
     "@cyclonedx/cyclonedx-npm": "^6.0.1",
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^24.13.3",
     "prettier": "3.6.2",
     "typescript": "^7.0.2"
   }

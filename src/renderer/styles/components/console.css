@@ -1,0 +1,66 @@
+.host-console-tools {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.host-console-heading > :first-child {
+  min-width: 120px;
+  flex: 1 0 120px;
+}
+
+.host-console-heading h3 {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.host-console-tools input[type='search'] {
+  width: min(220px, 32vw);
+  min-width: 130px;
+  min-height: 34px;
+  border: 1px solid var(--line, #5b4058);
+  border-radius: 0;
+  padding: 6px 9px;
+  background: var(--panel-strong, #0b090c);
+  color: var(--text, #fff);
+}
+
+.console-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  color: var(--muted, #c7bdc6);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.console-follow input {
+  accent-color: var(--plum-bright, #d89bd2);
+}
+
+.console-filter-status {
+  min-height: 16px;
+  margin: -4px 0 6px;
+  color: var(--muted, #c7bdc6);
+  font-size: 11px;
+}
+
+@media (max-width: 1180px) {
+  .host-console-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .host-console-tools {
+    justify-content: flex-start;
+  }
+
+  .host-console-tools input[type='search'] {
+    flex: 1 1 160px;
+    width: auto;
+  }
+}

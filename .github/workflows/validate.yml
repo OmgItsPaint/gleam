@@ -1,4 +1,4 @@
-name: Validate Swirl
+name: Validate Gleam
 
 on:
   push:
@@ -18,25 +18,34 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
       - run: npm ci
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm test
+      - run: npm run test:package
+      - name: Compile native launcher
+        run: npx tauri build --debug --no-bundle
 
   in-game-module:
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        minecraft-version: ["26.1.2", "26.2"]
+        minecraft-version: ['26.1.2', '26.2']
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "25"
+          java-version: '25'
       - uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "9.5.0"
       - name: Build module for Minecraft ${{ matrix.minecraft-version }}
         env:
           ORG_GRADLE_PROJECT_minecraftVersion: ${{ matrix.minecraft-version }}
-        run: gradle -p swirl-mod clean bundleMod
+        run: .\swirl-mod\gradlew.bat -p swirl-mod clean test bundleMod

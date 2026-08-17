@@ -1,0 +1,198 @@
+/* Profile editor layout: clickable cover, actions, installed mods, and recommendation library. */
+.profile-cover {
+  cursor: pointer;
+}
+.profile-cover:after {
+  content: 'Click banner to edit';
+  position: absolute;
+  top: 20px;
+  right: 16px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: #1b100bb8;
+  color: #ffe1a4;
+  font:
+    9px ui-monospace,
+    monospace;
+  opacity: 0;
+  transition: 0.16s;
+}
+.profile-card:hover .profile-cover:after {
+  opacity: 1;
+}
+.profile-create-version {
+  padding: 10px;
+}
+.profile-create-version > span {
+  margin-bottom: 5px;
+}
+.editor-library .mod-results {
+  margin-top: 14px;
+}
+.editor-library .mod-card {
+  background: #ffffff07;
+}
+.editor-sidebar {
+  max-height: 650px;
+  overflow: auto;
+}
+.editor-sidebar-title {
+  position: sticky;
+  top: -17px;
+  z-index: 2;
+  padding: 4px 0 12px;
+  background: #2d2117;
+}
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  max-height: min(68vh, 680px);
+  overflow: auto;
+}
+.screenshot-card {
+  overflow: hidden;
+  border: 1px solid #71456d;
+  border-radius: 10px;
+  background: #0b090b;
+}
+.screenshot-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: #050505;
+}
+.screenshot-card-info {
+  padding: 10px;
+}
+.screenshot-card-info strong,
+.screenshot-card-info small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.screenshot-card-info small {
+  margin: 4px 0 9px;
+  color: #cbb4ca;
+}
+.screenshot-card-actions {
+  display: flex;
+  gap: 7px;
+}
+.editor-sidebar .mod-card {
+  padding: 8px;
+}
+.editor-sidebar .mod-title {
+  font-size: 12px;
+}
+.editor-sidebar .mod-meta {
+  margin-top: 2px;
+}
+.editor-sidebar .mod-card:hover {
+  border-color: #f5bf6360;
+}
+.profile-editor .back {
+  border-color: #f5bf635a;
+}
+.profile-editor .back:hover {
+  border-color: #f5bf63;
+  color: #f8cc77;
+}
+.profile-health {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 22px;
+  padding: 18px;
+  border: 3px solid #49384a;
+  background: #09080af5;
+  box-shadow: 5px 5px 0 #000;
+}
+.profile-health[hidden] {
+  display: none;
+}
+.profile-health-heading,
+.profile-health-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.profile-health-heading h3 {
+  margin: 4px 0 0;
+  font-family: SwirlPixel, 'Segoe UI', sans-serif;
+  font-size: 18px;
+}
+.profile-health-badge {
+  padding: 7px 9px;
+  border: 2px solid #a86199;
+  color: #fff;
+  font-family: SwirlPixel, 'Segoe UI', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.profile-health-badge[data-state='ready'] {
+  border-color: #84d49b;
+  color: #b7f2c7;
+}
+.profile-health-badge[data-state='repair'] {
+  border-color: #e6a75d;
+  color: #ffd39d;
+}
+.profile-health-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.profile-health-stats span {
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+  border-left: 3px solid #7b3f72;
+  background: #151116;
+  color: #aaa2ac;
+  font-size: 12px;
+}
+.profile-health-stats b {
+  overflow: hidden;
+  color: #fff;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-health-issues {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  color: #d8cfd9;
+  font-size: 12px;
+  list-style: none;
+}
+.profile-health-issues li:before {
+  content: '•';
+  margin-right: 8px;
+  color: #e6a75d;
+}
+.profile-health-actions {
+  justify-content: flex-start;
+}
+@media (max-width: 600px) {
+  .profile-health-heading,
+  .profile-health-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .profile-health-stats {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 850px) {
+  .editor-sidebar {
+    max-height: 360px;
+  }
+  .profile-cover:after {
+    display: none;
+  }
+}

@@ -1,0 +1,1 @@
+{"main-capability":{"identifier":"main-capability","description":"Permissions for the local Gleam launcher window","local":true,"windows":["main"],"permissions":["core:default"]}}

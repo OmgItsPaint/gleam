@@ -1,13 +1,12 @@
-name: Build and publish Windows release
+name: Build and publish Gleam for Windows
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Existing release tag to build (for example v1.0.7)'
+        description: 'Release tag (for example v3.0.0)'
         required: true
         type: string
 
@@ -17,60 +16,117 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    environment: production
     env:
       RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+      GLEAM_UPDATE_PUBLIC_KEY: ${{ secrets.GLEAM_UPDATE_PUBLIC_KEY }}
+      GLEAM_UPDATE_PRIVATE_KEY: ${{ secrets.GLEAM_UPDATE_PRIVATE_KEY }}
+      GLEAM_UPDATE_MANIFEST_URL: https://github.com/${{ github.repository }}/releases/latest/download/latest.json
+      GLEAM_PROVISIONING_METADATA: ${{ secrets.GLEAM_PROVISIONING_METADATA }}
+      GLEAM_WINDOWS_PUBLISHER: ${{ secrets.WINDOWS_PUBLISHER }}
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ env.RELEASE_TAG }}
-      
       - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
-          
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "25"
-          
+          java-version: '25'
       - uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: "9.5.0"
-          
+
       - name: Build in-game module for Minecraft 26.1.2
         env:
-          ORG_GRADLE_PROJECT_minecraftVersion: "26.1.2"
-        run: gradle -p swirl-mod clean bundleMod
-        
+          ORG_GRADLE_PROJECT_minecraftVersion: '26.1.2'
+        run: .\swirl-mod\gradlew.bat -p swirl-mod clean test bundleMod
       - name: Build in-game module for Minecraft 26.2
         env:
-          ORG_GRADLE_PROJECT_minecraftVersion: "26.2"
-        run: gradle -p swirl-mod clean bundleMod
-        
-      - name: Configure signed update channel
-        env:
-          SWIRL_UPDATE_PUBLIC_KEY: ${{ secrets.SWIRL_UPDATE_PUBLIC_KEY }}
-        run: node configure-update.js
-        
+          ORG_GRADLE_PROJECT_minecraftVersion: '26.2'
+        run: .\swirl-mod\gradlew.bat -p swirl-mod clean test bundleMod
+
       - run: npm ci
-      
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
       - run: npm test
-      
-      - name: Build signed installer
+      - run: npm run test:package
+
+      - name: Configure signed update channel
+        run: node tools/release/configure-update.js
+
+      - name: Import Windows code-signing certificate
+        shell: pwsh
         env:
-          CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-        run: npm run dist:win
-        
+          CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:CERTIFICATE_BASE64 -or -not $env:CERTIFICATE_PASSWORD) { throw 'Windows signing secrets are missing.' }
+          $certificatePath = Join-Path $env:RUNNER_TEMP 'gleam-release.pfx'
+          [IO.File]::WriteAllBytes($certificatePath, [Convert]::FromBase64String($env:CERTIFICATE_BASE64))
+          $password = ConvertTo-SecureString -String $env:CERTIFICATE_PASSWORD -Force -AsPlainText
+          $certificate = Import-PfxCertificate -FilePath $certificatePath -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          if (-not $certificate.Thumbprint) { throw 'The Windows signing certificate could not be imported.' }
+          "GLEAM_WINDOWS_CERTIFICATE=$certificatePath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $releaseConfig = @{
+            bundle = @{
+              windows = @{
+                certificateThumbprint = $certificate.Thumbprint
+                digestAlgorithm = 'sha256'
+                timestampUrl = 'http://timestamp.digicert.com'
+              }
+            }
+          }
+          $releaseConfig | ConvertTo-Json -Depth 8 | Set-Content src-tauri/tauri.release.conf.json -Encoding utf8
+
+      - name: Verify production inputs
+        run: npm run release:verify
+
+      - name: Build signed Tauri installers and draft release
+        id: tauri
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ env.RELEASE_TAG }}
+          releaseName: 'Gleam __VERSION__'
+          releaseBody: 'Signed Windows installers for Gleam. See the release notes before upgrading.'
+          releaseDraft: true
+          prerelease: false
+          args: --config src-tauri/tauri.release.conf.json
+
+      - name: Normalize player installer names
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $setup = Get-ChildItem src-tauri/target/release/bundle/nsis -Filter '*-setup.exe' | Select-Object -First 1
+          $msi = Get-ChildItem src-tauri/target/release/bundle/msi -Filter '*.msi' | Select-Object -First 1
+          if (-not $setup -or -not $msi) { throw 'Tauri did not produce both Windows installers.' }
+          Copy-Item $setup.FullName "dist/Gleam-$version-Setup.exe"
+          Copy-Item $msi.FullName "dist/Gleam-$version-Enterprise.msi"
+
       - name: Sign update manifest
-        env:
-          SWIRL_UPDATE_PRIVATE_KEY: ${{ secrets.SWIRL_UPDATE_PRIVATE_KEY }}
         run: npm run sign:update
-        
+      - name: Generate SBOM, inventory, dependency report, and checksums
+        run: npm run release:artifacts
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          draft: true
           files: |
             dist/*.exe
+            dist/*.msi
             dist/latest.json
+            dist/*sbom.json
+            dist/dependency-report.json
+            dist/packaged-file-inventory.json
+            dist/release-checksums.sha256

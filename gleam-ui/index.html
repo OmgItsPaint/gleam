@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#eef0df" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src ipc: http://ipc.localhost"
+    />
+    <title>Gleam</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="titlebar" data-tauri-drag-region>
+        <a class="brand" href="#home" aria-label="Gleam home" data-view-link="home">
+          <img src="assets/gleam-logo.png" alt="" />
+          <span>
+            <strong>Gleam</strong>
+            <small>Minecraft Client</small>
+          </span>
+        </a>
+        <nav class="main-nav" aria-label="Primary">
+          <button class="nav-item active" data-view="home" type="button">
+            <span aria-hidden="true">⌂</span>
+            Home
+          </button>
+          <button class="nav-item" data-view="play" type="button">
+            <span aria-hidden="true">▷</span>
+            Play
+          </button>
+          <button class="nav-item" data-view="profiles" type="button">
+            <span aria-hidden="true">◇</span>
+            Profiles
+          </button>
+          <button class="nav-item" data-view="mods" type="button">
+            <span aria-hidden="true">✦</span>
+            Mods
+          </button>
+          <button class="nav-item" data-view="host" type="button">
+            <span aria-hidden="true">◎</span>
+            Host
+          </button>
+          <button class="nav-item" data-view="settings" type="button">
+            <span aria-hidden="true">⚙</span>
+            Settings
+          </button>
+        </nav>
+        <div class="title-actions" aria-label="Window controls">
+          <button type="button" data-window-action="minimize" aria-label="Minimize">—</button>
+          <button type="button" data-window-action="close" aria-label="Close">×</button>
+        </div>
+      </header>
+
+      <main id="main-content" tabindex="-1">
+        <section class="view active" data-view-panel="home" aria-labelledby="home-title">
+          <div class="hero panel">
+            <div class="pixel-sky" aria-hidden="true">
+              <i></i>
+              <i></i>
+              <i></i>
+              <i></i>
+            </div>
+            <div class="hero-copy">
+              <p class="eyebrow">A lighter way to play</p>
+              <h1 id="home-title">
+                Your Minecraft.
+                <br />
+                <em>Your way.</em>
+              </h1>
+              <p>Custom profiles, worlds, mods, and hosting—kept private, portable, and yours.</p>
+              <div class="hero-actions">
+                <button class="primary-button" type="button" data-view="profiles">
+                  Browse profiles
+                  <span>→</span>
+                </button>
+                <button class="quiet-button" type="button" data-view="settings">Settings</button>
+              </div>
+            </div>
+            <aside class="active-card" aria-labelledby="active-title">
+              <p class="eyebrow" id="active-title">Active instance</p>
+              <div class="instance-row">
+                <div class="grass-cube" aria-hidden="true"></div>
+                <span>
+                  <strong id="active-profile-name">Finding your profiles…</strong>
+                  <small id="active-profile-version">Existing data stays in place</small>
+                </span>
+              </div>
+              <label class="compact-field" for="home-username">Player name</label>
+              <input
+                id="home-username"
+                class="text-field"
+                maxlength="16"
+                autocomplete="off"
+                value="PlayerOne"
+              />
+              <button class="play-button" id="home-play-button" type="button">
+                <span>▶</span>
+                Play
+              </button>
+              <small class="migration-note">Accountless play. Every profile stays isolated.</small>
+            </aside>
+          </div>
+          <div class="dashboard-grid">
+            <section class="panel profile-panel" aria-labelledby="profiles-title">
+              <div class="panel-heading">
+                <h2 id="profiles-title">Profiles</h2>
+                <button type="button" data-view="profiles">View all</button>
+              </div>
+              <div id="profile-list" class="profile-list" aria-live="polite">
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+              </div>
+            </section>
+            <section class="panel welcome-panel" aria-labelledby="welcome-title">
+              <div class="gleam-orbit" aria-hidden="true">
+                <img src="assets/gleam-logo.png" alt="" />
+              </div>
+              <div>
+                <p class="status-pill">Native Rust launcher</p>
+                <h2 id="welcome-title">Welcome to Gleam</h2>
+                <p>
+                  The Rust-powered launcher uses your existing library without moving or renaming
+                  it.
+                </p>
+              </div>
+            </section>
+            <section class="panel status-panel" aria-labelledby="status-title">
+              <div class="panel-heading">
+                <h2 id="status-title">Library health</h2>
+                <span id="health-badge" class="health-badge">Checking</span>
+              </div>
+              <ul class="health-list" id="health-list" aria-live="polite"></ul>
+            </section>
+          </div>
+        </section>
+
+        <section
+          class="view simple-view"
+          data-view-panel="profiles"
+          aria-labelledby="profiles-view-title"
+        >
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Your worlds, separated</p>
+              <h1 id="profiles-view-title">Profiles</h1>
+              <p>Independent Minecraft folders for every adventure.</p>
+            </div>
+            <button class="primary-button" id="new-profile-button" type="button">
+              New profile
+            </button>
+          </div>
+          <div class="panel content-panel">
+            <div id="profiles-grid" class="profiles-grid"></div>
+          </div>
+        </section>
+
+        <section class="view simple-view" data-view-panel="play" aria-labelledby="play-view-title">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Ready when you are</p>
+              <h1 id="play-view-title">Play</h1>
+              <p>Prepare, verify, and launch an isolated profile with the native Rust engine.</p>
+            </div>
+          </div>
+          <div class="panel action-surface">
+            <label>
+              Profile
+              <select id="play-profile" class="text-field"></select>
+            </label>
+            <label>
+              Player name
+              <input
+                id="play-username"
+                class="text-field"
+                maxlength="16"
+                autocomplete="off"
+                value="PlayerOne"
+              />
+            </label>
+            <label>
+              Connection
+              <select id="play-offline-mode" class="text-field">
+                <option value="online">Online</option>
+                <option value="prefer-offline">Prefer offline</option>
+                <option value="offline">Offline only</option>
+              </select>
+            </label>
+            <div class="action-row">
+              <button class="quiet-surface-button" id="prepare-button" type="button">
+                Check &amp; repair
+              </button>
+              <button class="primary-button" id="launch-button" type="button">
+                Play Minecraft
+              </button>
+            </div>
+            <p id="launch-status" class="operation-status" aria-live="polite">
+              Choose a profile to begin.
+            </p>
+          </div>
+        </section>
+
+        <section class="view simple-view" data-view-panel="mods" aria-labelledby="mods-view-title">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Per-profile control</p>
+              <h1 id="mods-view-title">Mods</h1>
+              <p>Search Modrinth and manage compatible Fabric mods.</p>
+            </div>
+          </div>
+          <div class="panel content-panel">
+            <div class="toolbar">
+              <select id="mods-profile" class="text-field" aria-label="Profile"></select>
+              <input
+                id="mod-search"
+                class="text-field"
+                type="search"
+                maxlength="100"
+                placeholder="Search Fabric mods…"
+              />
+              <button id="mod-search-button" class="primary-button" type="button">Search</button>
+            </div>
+            <h2>Installed</h2>
+            <div id="installed-mods" class="item-list"></div>
+            <h2>Search results</h2>
+            <div id="mod-results" class="item-list">
+              <p class="muted">Search for a mod to see compatible results.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="view simple-view" data-view-panel="host" aria-labelledby="host-view-title">
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Private server tools</p>
+              <h1 id="host-view-title">Host</h1>
+              <p>Create and run isolated Fabric servers from your unchanged local library.</p>
+            </div>
+            <button class="primary-button" id="new-server-button" type="button">New server</button>
+          </div>
+          <div class="host-layout">
+            <section class="panel content-panel">
+              <h2>Your servers</h2>
+              <div id="server-list" class="item-list"><p class="muted">Loading servers…</p></div>
+            </section>
+            <section class="panel console-panel">
+              <div class="panel-heading">
+                <h2 id="console-title">Console</h2>
+                <button id="refresh-console-button" type="button">Refresh</button>
+              </div>
+              <pre id="server-console">Select a server to view its console.</pre>
+              <div class="toolbar console-toolbar">
+                <input
+                  id="server-command"
+                  class="text-field"
+                  maxlength="500"
+                  placeholder="Server command…"
+                />
+                <button id="send-command-button" class="quiet-surface-button" type="button">
+                  Send
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section
+          class="view simple-view"
+          data-view-panel="settings"
+          aria-labelledby="settings-view-title"
+        >
+          <div class="page-header">
+            <div>
+              <p class="eyebrow">Your launcher</p>
+              <h1 id="settings-view-title">Settings</h1>
+              <p>Control connectivity, offline behavior, identity, and comfort.</p>
+            </div>
+          </div>
+          <div class="settings-grid">
+            <section class="panel setting-card">
+              <h2>About</h2>
+              <dl>
+                <div>
+                  <dt>App</dt>
+                  <dd id="app-version">Gleam</dd>
+                </div>
+                <div>
+                  <dt>Core</dt>
+                  <dd id="migration-stage">Loading…</dd>
+                </div>
+                <div>
+                  <dt>Data</dt>
+                  <dd>Kept in place</dd>
+                </div>
+              </dl>
+            </section>
+            <section class="panel setting-card">
+              <h2>Appearance</h2>
+              <p>Cream, forest, moss, sage, and glow are the Gleam defaults.</p>
+              <label class="toggle-row">
+                <span>Reduced motion</span>
+                <input id="reduced-motion" type="checkbox" />
+              </label>
+            </section>
+            <section class="panel setting-card">
+              <h2>Play &amp; network</h2>
+              <label class="stacked-field">
+                Default player name
+                <input id="setting-username" class="text-field" maxlength="16" autocomplete="off" />
+              </label>
+              <label class="stacked-field">
+                Connection mode
+                <select id="setting-offline-mode" class="text-field">
+                  <option value="online">Online</option>
+                  <option value="prefer-offline">Prefer offline</option>
+                  <option value="offline">Offline only</option>
+                </select>
+              </label>
+              <button class="quiet-surface-button" id="save-settings-button" type="button">
+                Save settings
+              </button>
+            </section>
+            <section class="panel setting-card">
+              <h2>Player identity</h2>
+              <p id="identity-status">Checking local identity…</p>
+              <button class="quiet-surface-button" id="create-identity-button" type="button">
+                Create protected identity
+              </button>
+            </section>
+            <section class="panel setting-card">
+              <h2>Offline packs</h2>
+              <p>
+                Export verified game files for managed or disconnected networks. Worlds, servers,
+                identities, and logs are excluded.
+              </p>
+              <div class="card-actions">
+                <button id="import-pack-button" type="button">Import</button>
+                <button id="export-pack-button" type="button">Export selected profile</button>
+              </div>
+            </section>
+            <section class="panel setting-card">
+              <h2>Updates</h2>
+              <p id="update-status">Signed updates are disabled in source builds.</p>
+              <button class="quiet-surface-button" id="check-updates-button" type="button">
+                Check safely
+              </button>
+            </section>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <span class="footer-brand">
+          <img src="assets/gleam-logo.png" alt="" />
+          Lightweight. Smooth. Made for Minecraft.
+        </span>
+        <span>
+          <i class="online-dot"></i>
+          Local-first launcher
+        </span>
+      </footer>
+    </div>
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <dialog id="profile-dialog" class="modal">
+      <form method="dialog" id="profile-form">
+        <header>
+          <div>
+            <p class="eyebrow">A clean adventure</p>
+            <h2>New profile</h2>
+          </div>
+          <button value="cancel" aria-label="Close" type="submit">×</button>
+        </header>
+        <label class="stacked-field">
+          Profile name
+          <input
+            id="profile-name"
+            class="text-field"
+            required
+            maxlength="64"
+            value="New Adventure"
+          />
+        </label>
+        <label class="stacked-field">
+          Minecraft version
+          <input id="profile-version" class="text-field" required maxlength="32" value="26.2" />
+        </label>
+        <div class="action-row">
+          <button class="quiet-surface-button" value="cancel" type="submit">Cancel</button>
+          <button class="primary-button" id="create-profile-button" value="default" type="button">
+            Create profile
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="server-dialog" class="modal">
+      <form method="dialog" id="server-form">
+        <header>
+          <div>
+            <p class="eyebrow">Play together</p>
+            <h2>New server</h2>
+          </div>
+          <button value="cancel" aria-label="Close" type="submit">×</button>
+        </header>
+        <label class="stacked-field">
+          Server name
+          <input
+            id="server-name"
+            class="text-field"
+            required
+            maxlength="40"
+            value="Friends Server"
+          />
+        </label>
+        <label class="stacked-field">
+          Minecraft version
+          <input id="server-version" class="text-field" required maxlength="32" value="26.2" />
+        </label>
+        <label class="stacked-field">
+          Port
+          <input
+            id="server-port"
+            class="text-field"
+            type="number"
+            min="1024"
+            max="65535"
+            value="25565"
+          />
+        </label>
+        <label class="stacked-field">
+          Memory (MiB)
+          <input
+            id="server-memory"
+            class="text-field"
+            type="number"
+            min="1024"
+            max="16384"
+            step="512"
+            value="4096"
+          />
+        </label>
+        <label class="toggle-row">
+          <span>I accept the Minecraft EULA</span>
+          <input id="server-eula" type="checkbox" />
+        </label>
+        <div class="action-row">
+          <button class="quiet-surface-button" value="cancel" type="submit">Cancel</button>
+          <button class="primary-button" id="create-server-button" value="default" type="button">
+            Create server
+          </button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>

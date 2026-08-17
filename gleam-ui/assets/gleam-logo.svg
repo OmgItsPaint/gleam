@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title description">
+  <title id="title">Gleam</title>
+  <desc id="description">A forest green spiral surrounding a four-point gleam.</desc>
+  <defs>
+    <linearGradient id="gleam" x1="44" y1="35" x2="205" y2="218" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#183f25"/>
+      <stop offset=".62" stop-color="#3e6f44"/>
+      <stop offset="1" stop-color="#8fde76"/>
+    </linearGradient>
+  </defs>
+  <path fill="none" stroke="url(#gleam)" stroke-linecap="round" stroke-width="28" d="M205 84c-18-34-61-51-99-36-43 17-63 66-45 109 18 44 69 65 113 44 39-19 56-66 37-105-17-35-59-49-93-31-30 16-41 54-24 83 15 26 49 34 73 17 20-15 25-44 10-63-13-16-38-18-53-4"/>
+  <path fill="#f7f3e7" stroke="#183f25" stroke-width="6" stroke-linejoin="round" d="M128 88l10 25 25 10-25 10-10 25-10-25-25-10 25-10z"/>
+</svg>

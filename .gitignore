@@ -5,12 +5,16 @@ qa-dist/
 coverage/
 **/.gradle/
 **/build/
+src-tauri/target/
+swirl-mod/run/
 Microsoft/
 
 # Local QA and formatter state
 .qa-*/
 .npm-cache/
 .prettiercache
+Swirl-support-*.json
+Gleam-support-*.json
 
 # Never upload credentials
 .env

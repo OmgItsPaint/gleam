@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">Gleam</title>
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#174b2e"/><stop offset="1" stop-color="#82d76a"/></linearGradient></defs>
+  <path fill="none" stroke="url(#g)" stroke-width="27" stroke-linecap="round" d="M196 69c-27-33-80-39-115-9-40 34-40 99 2 131 37 29 96 19 120-23 20-35 4-80-31-95-31-13-69 3-77 36-7 26 13 53 40 54 23 1 42-18 40-40"/>
+  <path fill="#f7f5e9" d="m126 95 9 20 21 9-21 9-9 21-9-21-21-9 21-9z"/>
+</svg>

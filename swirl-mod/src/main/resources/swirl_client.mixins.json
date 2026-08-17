@@ -1,0 +1,25 @@
+{
+  "required": true,
+  "package": "app.swirl.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "KeyMappingMixin",
+    "KeyboardHandlerMixin",
+    "MouseHandlerMixin",
+    "KeyboardInputMixin",
+    "KeyMappingAccessor",
+    "OptionInstanceMixin",
+    "CrosshairMixin",
+    "FogRendererMixin",
+    "ClientClockManagerMixin",
+    "LevelWeatherMixin",
+    "ClientLevelWeatherMixin",
+    "ScreenEffectRendererMixin",
+    "ItemInHandRendererMixin",
+    "LevelRendererMixin",
+    "BlockOutlineSubmitMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

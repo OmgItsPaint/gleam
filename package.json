@@ -1,67 +1,36 @@
 {
-  "name": "swirl-launcher",
-  "version": "2.1.1",
-  "description": "Swirl - an offline, profile-isolated Fabric launcher for Minecraft Java Edition 1.14+",
-  "author": "Swirl Team",
+  "name": "gleam-launcher",
+  "version": "3.0.0",
+  "description": "Gleam - a local-first, profile-isolated Minecraft Java client",
+  "author": "Gleam Team",
   "license": "UNLICENSED",
   "private": true,
-  "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "test": "node compatibility-test.js && node smoke-test.js",
-    "test:compat": "node compatibility-test.js",
-    "test:package": "node package-qa.js",
-    "format": "prettier --write \"**/*.{js,html,css}\"",
-    "format:check": "prettier --check \"**/*.{js,html,css}\"",
-    "icon": "electron render-icon.js",
-    "dist:win": "node package-qa.js --installer",
-    "sign:update": "node sign-update-manifest.js"
-  },
-  "build": {
-    "appId": "com.swirl.launcher",
-    "productName": "Swirl",
-    "electronDist": "node_modules/electron/dist",
-    "artifactName": "Swirl-${version}-Setup.${ext}",
-    "files": [
-      "main.js",
-      "launcher-engine.js",
-      "server-engine.js",
-      "update-service.js",
-      "version-policy.js",
-      "identity-service.js",
-      "preload.js",
-      "renderer.js",
-      "host-ui.js",
-      "identity-ui.js",
-      "*.css",
-      "index.html",
-      "assets/fonts/Minecraft.ttf",
-      "assets/swirl-logo.*",
-      "bundled-mods/*.jar",
-      "package.json",
-      "update-config.json"
-    ],
-    "win": {
-      "icon": "assets/swirl-logo.png",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "perMachine": false,
-      "runAfterFinish": true
-    }
+    "start": "tauri dev",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "rust:check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "rust:test": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "test": "npm run typecheck && node tests/integration/architecture.test.js && node tests/unit/gleam-tauri-source.test.js && node tests/unit/services.test.js && node tests/integration/compatibility.test.js",
+    "test:compat": "node tests/integration/compatibility.test.js",
+    "test:architecture": "node tests/integration/architecture.test.js",
+    "test:package": "node tools/qa/tauri-package-qa.js",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{js,html,css}\" \"gleam-ui/**/*.{js,html,css}\" \"tests/**/*.js\" \"tools/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.{js,html,css}\" \"gleam-ui/**/*.{js,html,css}\" \"tests/**/*.js\" \"tools/**/*.js\"",
+    "icon": "tauri icon assets/gleam-logo.png",
+    "dist:win": "tauri build --bundles nsis,msi",
+    "sbom": "cyclonedx-npm --output-file dist/gleam-3.0.0-sbom.json",
+    "sign:update": "node tools/release/sign-update-manifest.js",
+    "release:verify": "node tools/release/verify-production.js",
+    "release:artifacts": "npm run sbom && node tools/release/release-artifacts.js"
   },
   "devDependencies": {
-    "electron": "^37.0.0",
-    "electron-builder": "^26.15.3",
-    "prettier": "3.6.2"
+    "@cyclonedx/cyclonedx-npm": "^6.0.1",
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^24.13.3",
+    "prettier": "3.6.2",
+    "typescript": "^7.0.2"
   }
 }

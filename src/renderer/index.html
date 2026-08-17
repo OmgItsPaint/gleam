@@ -1,0 +1,1074 @@
+<!doctype html>
+<!--
+  Gleam's compatibility renderer document. JavaScript controllers populate dynamic cards and dialogs, while
+  privileged filesystem, network, and process work stays behind preload.js.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.modrinth.com; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>Gleam Legacy</title>
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/pages/editor.css" />
+    <link rel="stylesheet" href="styles/components/polish.css" />
+    <link rel="stylesheet" href="styles/utilities.css" />
+    <link rel="stylesheet" href="styles/pages/hosting.css" />
+    <link rel="stylesheet" href="styles/pages/hosting-run.css" />
+    <link rel="stylesheet" href="styles/pages/identity.css" />
+    <link rel="stylesheet" href="styles/pages/identity-security.css" />
+    <link rel="stylesheet" href="styles/components/swirl.css" />
+    <link rel="stylesheet" href="styles/tokens.css" />
+    <link rel="stylesheet" href="styles/components/console.css" />
+    <link rel="stylesheet" href="styles/components/crash-assistant.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <!-- Persistent navigation and local player identity controls. -->
+      <header class="titlebar">
+        <button class="brand" id="home-brand" title="Open library">
+          <img class="brand-logo" src="../../assets/gleam-logo.png" alt="" />
+          <span>GLEAM</span>
+        </button>
+        <nav class="top-actions" aria-label="Launcher navigation">
+          <button id="open-library">Play</button>
+          <button id="open-profiles">Profiles</button>
+          <button id="open-hosts">Host</button>
+          <button id="open-settings" title="Settings" aria-label="Settings">Settings</button>
+        </nav>
+        <div id="identity-control" class="identity-control">
+          <button
+            id="identity-trigger"
+            class="identity-trigger"
+            type="button"
+            aria-expanded="false"
+          >
+            <span id="identity-avatar">SW</span>
+            <span>
+              <small>NAME</small>
+              <strong id="identity-name">Loading…</strong>
+            </span>
+            <b>▾</b>
+          </button>
+          <div id="identity-popover" class="identity-popover" hidden>
+            <label for="identity-input">Player name</label>
+            <p>This is what your friends see.</p>
+            <input
+              id="identity-input"
+              maxlength="16"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="3–16 letters, numbers, or _"
+            />
+            <div class="identity-actions">
+              <button id="identity-generate" type="button">Random</button>
+              <button id="identity-save" type="button">Save</button>
+            </div>
+            <small id="identity-status"></small>
+          </div>
+        </div>
+        <div class="window-controls">
+          <button data-window="minimize" aria-label="Minimize">−</button>
+          <button data-window="close" aria-label="Close">×</button>
+        </div>
+      </header>
+
+      <!-- Main play and Modrinth search view. -->
+      <div id="library-view" class="page library-page">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">GLEAM 3.0 · COMPATIBILITY</p>
+            <h1>
+              Your Minecraft.
+              <br />
+              <em>Your way.</em>
+            </h1>
+            <p class="subcopy">Profiles keep every world, mod, and setting separate.</p>
+          </div>
+          <div class="hero-orb" aria-hidden="true">
+            <img src="../../assets/gleam-logo.png" alt="" />
+          </div>
+        </section>
+        <section class="dashboard">
+          <div class="dashboard-heading">
+            <div>
+              <p class="eyebrow">PLAY</p>
+              <h2>Choose your game</h2>
+            </div>
+            <span id="active-version-badge" class="compatible">Loading…</span>
+          </div>
+          <p class="flow-hint">Choose a name, version, and profile.</p>
+          <div class="launch-grid">
+            <div class="profile">
+              <div class="avatar" id="avatar">SW</div>
+              <div>
+                <span class="muted">NAME</span>
+                <strong id="profile-name">Loading…</strong>
+                <small>Your friends will see this name.</small>
+              </div>
+              <button id="quick-name" class="icon-button" title="Change player name">✎</button>
+            </div>
+            <div class="field">
+              <span>MINECRAFT VERSION</span>
+              <input id="version" type="hidden" value="26.2" />
+              <div id="minecraft-version-picker" class="custom-picker"></div>
+            </div>
+            <div class="field">
+              <span>PROFILE</span>
+              <input id="active-profile" type="hidden" />
+              <div id="active-profile-picker" class="custom-picker"></div>
+              <button id="quick-new-profile" class="inline-action">+ New profile</button>
+            </div>
+          </div>
+          <div id="progress-wrap" class="progress-wrap" hidden>
+            <div class="progress-top">
+              <span id="progress-label">Preparing download</span>
+              <span id="progress-percent">0%</span>
+            </div>
+            <div class="track"><div id="progress-bar" class="bar"></div></div>
+          </div>
+          <div class="launch-footer">
+            <p id="status" class="status">Loading…</p>
+            <div class="launch-actions">
+              <button id="join-server" class="secondary-action" type="button">
+                Join with invite
+              </button>
+              <button id="launch" class="launch">
+                <span>Play</span>
+                <b>→</b>
+              </button>
+            </div>
+          </div>
+        </section>
+        <section id="crash-assistant" class="crash-assistant" hidden aria-live="polite">
+          <div>
+            <p class="eyebrow">CRASH ASSISTANT</p>
+            <h2 id="crash-assistant-title">Minecraft needs attention</h2>
+            <p id="crash-assistant-detail"></p>
+            <small id="crash-assistant-meta"></small>
+          </div>
+          <div class="crash-assistant-actions">
+            <button id="crash-assistant-repair" type="button">Repair profile</button>
+            <button id="crash-assistant-folder" class="secondary-action" type="button">
+              Open crash folder
+            </button>
+            <button id="crash-assistant-dismiss" class="text-action" type="button">Dismiss</button>
+          </div>
+        </section>
+        <section
+          id="session-summary"
+          class="session-summary"
+          hidden
+          aria-label="Local play history"
+        >
+          <div>
+            <p class="eyebrow">YOUR PLAY HISTORY</p>
+            <h2>Local sessions</h2>
+            <small>Stored only on this computer.</small>
+          </div>
+          <dl>
+            <div>
+              <dt>Sessions</dt>
+              <dd id="session-count">0</dd>
+            </div>
+            <div>
+              <dt>Total time</dt>
+              <dd id="session-total">0m</dd>
+            </div>
+            <div>
+              <dt>Last 7 days</dt>
+              <dd id="session-recent">0m</dd>
+            </div>
+            <div>
+              <dt>Crashes</dt>
+              <dd id="session-crashes">0</dd>
+            </div>
+          </dl>
+        </section>
+        <section id="library-mods" class="mods" hidden>
+          <div class="mods-heading">
+            <div>
+              <p class="eyebrow">MODS</p>
+              <h2>Add mods</h2>
+            </div>
+            <span id="library-version" class="compatible">Loading…</span>
+          </div>
+          <form id="mod-search" class="mod-search">
+            <input
+              id="mod-query"
+              type="search"
+              maxlength="80"
+              placeholder="Search mods"
+              aria-label="Search mods"
+            />
+            <button>Search</button>
+          </form>
+          <p id="mod-status" class="mod-status">Loading mods…</p>
+          <div id="search-section" hidden>
+            <div class="section-title-row">
+              <h3>Search results</h3>
+              <button id="clear-search" class="text-action">Clear search</button>
+            </div>
+            <div id="mod-results" class="mod-results"></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Isolated client profile creation, transfer, import, and selection. -->
+      <section id="profiles-view" class="profiles-page page" hidden>
+        <div class="profiles-hero page-header">
+          <div>
+            <p class="eyebrow">PROFILES</p>
+            <h2>Your games</h2>
+            <p>Each profile has its own worlds, mods, and settings.</p>
+          </div>
+          <div class="profile-toolbar-actions">
+            <button id="open-import" class="secondary-action">Import profile</button>
+          </div>
+        </div>
+        <div class="profile-tools">
+          <form id="create-profile" class="new-profile-form">
+            <input id="profile-name-input" maxlength="50" placeholder="New profile name" />
+            <button>Create</button>
+          </form>
+          <div class="field profile-create-version">
+            <span>MINECRAFT VERSION</span>
+            <input id="profile-create-version" type="hidden" />
+            <div id="profile-create-version-picker" class="custom-picker"></div>
+          </div>
+          <div class="field profile-copy-field">
+            <span>COPY FROM</span>
+            <input id="profile-source" type="hidden" />
+            <div id="profile-source-picker" class="custom-picker"></div>
+          </div>
+          <label class="field profile-preset-field">
+            <span>STARTING POINT</span>
+            <select id="profile-preset">
+              <option value="custom">Custom</option>
+              <option value="performance">Performance</option>
+              <option value="vanilla">Vanilla</option>
+            </select>
+          </label>
+          <details class="profile-transfer">
+            <summary>Choose what to copy</summary>
+            <div class="profile-transfer-grid">
+              <label>
+                <input id="transfer-mods" type="checkbox" checked />
+                Mods
+              </label>
+              <label>
+                <input id="transfer-settings" type="checkbox" />
+                Settings and controls
+              </label>
+              <label>
+                <input id="transfer-resourcepacks" type="checkbox" />
+                Resource packs
+              </label>
+              <label>
+                <input id="transfer-shaderpacks" type="checkbox" />
+                Shader packs
+              </label>
+              <label>
+                <input id="transfer-worlds" type="checkbox" />
+                Worlds
+              </label>
+              <label>
+                <input id="transfer-servers" type="checkbox" />
+                Saved servers
+              </label>
+            </div>
+            <small>Nothing stays linked after creation. Copied worlds become separate files.</small>
+          </details>
+        </div>
+        <div id="import-area" class="import-area" hidden>
+          <textarea
+            id="import-profile-code"
+            class="profile-code"
+            placeholder="Paste a profile code"
+          ></textarea>
+          <button id="import-profile" class="pack-button">Import</button>
+        </div>
+        <div class="profile-filter-bar">
+          <label class="profile-sort">
+            <span>SORT</span>
+            <select id="profile-sort">
+              <option value="newest">Newest first</option>
+              <option value="name">Name A-Z</option>
+              <option value="version">Minecraft version</option>
+              <option value="mods">Most mods</option>
+            </select>
+          </label>
+          <label class="profile-search">
+            <span>⌕</span>
+            <input id="profile-search" type="search" placeholder="Search profiles" />
+          </label>
+          <span id="profile-count" class="compatible">0 profiles</span>
+        </div>
+        <p id="profiles-status" class="mod-status">Loading profiles…</p>
+        <div id="profiles-list" class="profiles-grid"></div>
+      </section>
+
+      <!-- Launcher-wide accessibility, update, backup, Minecraft, and Fabric settings. -->
+      <section id="settings-view" class="control-panel page" hidden>
+        <button class="back" data-back>← Back to Play</button>
+        <p class="eyebrow">SETTINGS</p>
+        <h2>Settings</h2>
+        <label class="toggle-row">
+          <span>
+            <strong>Update mods before playing</strong>
+            <small>Only profiles with Auto-update turned on. A backup is made first.</small>
+          </span>
+          <input id="auto-update" type="checkbox" />
+          <i></i>
+        </label>
+        <label class="toggle-row">
+          <span>
+            <strong>Show help</strong>
+            <small>Show setup hints and simple explanations.</small>
+          </span>
+          <input id="beginner-mode" type="checkbox" />
+          <i></i>
+        </label>
+        <label class="toggle-row">
+          <span>
+            <strong>Show test versions</strong>
+            <small>
+              Add snapshots and release candidates. They always use separate profiles and may break
+              worlds or mods.
+            </small>
+          </span>
+          <input id="experimental-versions" type="checkbox" />
+          <i></i>
+        </label>
+        <label class="toggle-row">
+          <span>
+            <strong>Reduce motion</strong>
+            <small>Turns off animated movement, glow pulses, and smooth scrolling.</small>
+          </span>
+          <input id="reduced-motion" type="checkbox" />
+          <i></i>
+        </label>
+        <label class="toggle-row">
+          <span>
+            <strong>Use a clearer font</strong>
+            <small>Uses the system font for buttons and headings as well as body text.</small>
+          </span>
+          <input id="readable-font" type="checkbox" />
+          <i></i>
+        </label>
+        <div class="settings-grid">
+          <label class="field">
+            <span>UI SIZE</span>
+            <select id="ui-scale">
+              <option value="0.9">90%</option>
+              <option value="1">100%</option>
+              <option value="1.1">110%</option>
+              <option value="1.25">125%</option>
+              <option value="1.4">140%</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>BACKUPS TO KEEP</span>
+            <select id="backup-retention">
+              <option value="3">3</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>LAUNCHER UPDATES</span>
+            <select id="update-policy">
+              <option value="notify">Tell me first</option>
+              <option value="automatic">Download verified updates</option>
+              <option value="disabled">Disabled</option>
+              <option value="managed">Managed by administrator</option>
+            </select>
+          </label>
+          <div class="field">
+            <span>MINECRAFT VERSION</span>
+            <input id="settings-version" type="hidden" />
+            <div id="settings-version-picker" class="custom-picker"></div>
+          </div>
+          <div class="field">
+            <span>FABRIC LOADER</span>
+            <input id="fabric-loader" type="hidden" />
+            <div id="fabric-loader-picker" class="custom-picker"></div>
+          </div>
+        </div>
+        <div class="update-panel">
+          <div>
+            <strong>Launcher updates</strong>
+            <small id="launcher-update-status">
+              Signed update checking is off in this private build.
+            </small>
+          </div>
+          <button id="check-launcher-update" class="secondary-action" type="button">
+            Check for update
+          </button>
+          <button id="install-launcher-update" class="launch compact-launch" type="button" hidden>
+            <span>Install update</span>
+            <b>↓</b>
+          </button>
+        </div>
+        <section class="managed-settings" aria-labelledby="connection-settings-title">
+          <div class="managed-settings-heading">
+            <div>
+              <p class="eyebrow">CONNECTION & OFFLINE</p>
+              <h3 id="connection-settings-title">Work anywhere your administrator allows</h3>
+              <small id="managed-policy-status">
+                System proxy and Windows certificate settings are used by default.
+              </small>
+            </div>
+            <button id="run-network-diagnostics" class="secondary-action" type="button">
+              Test connection
+            </button>
+          </div>
+          <div class="settings-grid">
+            <label class="field">
+              <span>CONNECTION</span>
+              <select id="network-mode">
+                <option value="system">System settings</option>
+                <option value="manual">Manual proxy</option>
+                <option value="direct">Direct connection</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>ONLINE BEHAVIOR</span>
+              <select id="offline-mode">
+                <option value="online">Online</option>
+                <option value="prefer-offline">Prefer downloaded files</option>
+                <option value="offline">Offline — no requests</option>
+              </select>
+            </label>
+            <label id="manual-proxy-field" class="field managed-wide" hidden>
+              <span>PROXY ADDRESS</span>
+              <input
+                id="manual-proxy-url"
+                maxlength="2048"
+                placeholder="http://proxy.example:8080"
+                spellcheck="false"
+              />
+            </label>
+            <label id="proxy-user-field" class="field" hidden>
+              <span>PROXY USERNAME</span>
+              <input id="proxy-username" maxlength="256" autocomplete="username" />
+            </label>
+            <label id="proxy-password-field" class="field" hidden>
+              <span>PROXY PASSWORD</span>
+              <input
+                id="proxy-password"
+                maxlength="1024"
+                type="password"
+                autocomplete="current-password"
+              />
+            </label>
+          </div>
+          <pre id="network-diagnostics-result" class="diagnostic-results" hidden></pre>
+        </section>
+        <section class="managed-settings" aria-labelledby="storage-settings-title">
+          <div class="managed-settings-heading">
+            <div>
+              <p class="eyebrow">JOBS & STORAGE</p>
+              <h3 id="storage-settings-title">Downloads, repairs, and disk use</h3>
+              <small>Interrupted work is kept safely and resumes only when you ask.</small>
+            </div>
+            <button id="refresh-storage" class="secondary-action" type="button">
+              Check storage
+            </button>
+          </div>
+          <div id="storage-summary" class="storage-summary" role="status">
+            Storage has not been checked yet.
+          </div>
+          <div id="storage-cleanup-actions" class="managed-actions" hidden></div>
+          <label class="field job-concurrency-field">
+            <span>SIMULTANEOUS UNRELATED DOWNLOADS</span>
+            <select id="job-concurrency">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3 (recommended)</option>
+            </select>
+          </label>
+          <div id="job-center" class="job-center" aria-live="polite">
+            <p>No active jobs.</p>
+          </div>
+          <div class="managed-actions">
+            <button id="import-offline-pack" class="secondary-action" type="button">
+              Import offline pack
+            </button>
+          </div>
+        </section>
+        <p id="settings-status" class="mod-status" role="status">Loading versions…</p>
+        <div class="settings-actions">
+          <button id="save-settings" class="launch">
+            <span>Save</span>
+            <b>✓</b>
+          </button>
+          <button id="copy-diagnostics" class="secondary-action" type="button">
+            Copy troubleshooting info
+          </button>
+        </div>
+      </section>
+      <!-- Selected profile editor for mods, worlds, backups, sharing, and maintenance. -->
+      <section id="editor-view" class="profile-editor page" hidden>
+        <div class="editor-topbar">
+          <button class="back" data-back>← Back to profiles</button>
+          <span class="editor-isolation-note">Only changes this profile</span>
+        </div>
+        <div class="editor-heading">
+          <div class="editor-profile-summary">
+            <img src="../../assets/gleam-logo.png" alt="" class="editor-profile-logo" />
+            <div>
+              <p class="eyebrow">PROFILE</p>
+              <h2 id="editor-name">Profile</h2>
+              <p id="editor-meta" class="mod-status">Loading…</p>
+            </div>
+          </div>
+          <button id="editor-play" class="launch compact-launch">
+            <span>Use &amp; play</span>
+            <b>→</b>
+          </button>
+        </div>
+        <div class="profile-manage" aria-label="Profile tools">
+          <div class="profile-manage-group">
+            <span>PROFILE</span>
+            <button id="editor-rename" type="button">Rename</button>
+            <button id="editor-duplicate" type="button">Duplicate</button>
+            <button id="editor-worlds" type="button">Worlds</button>
+          </div>
+          <label class="editor-sync">
+            <input id="editor-autosync" type="checkbox" />
+            <span>
+              <b>Auto-update</b>
+              <small>Before launch</small>
+            </span>
+          </label>
+          <details class="profile-more">
+            <summary>More</summary>
+            <div class="profile-more-menu">
+              <div class="profile-manage-group">
+                <span>BACKUP &amp; REPAIR</span>
+                <button id="editor-backup" type="button">Back up now</button>
+                <button id="editor-restore" type="button">Browse backups</button>
+                <button id="editor-repair" type="button">Repair files</button>
+                <button id="editor-readiness" type="button">Check offline readiness</button>
+                <button id="editor-offline-export" type="button">Create offline pack</button>
+              </div>
+              <div class="profile-manage-group">
+                <span>SETTINGS</span>
+                <button
+                  id="editor-sync-settings"
+                  type="button"
+                  title="Copy Minecraft controls, video, audio, and accessibility settings from this profile to every other profile"
+                >
+                  Sync settings to all profiles
+                </button>
+              </div>
+              <div class="profile-manage-group">
+                <span>FILES</span>
+                <button id="editor-screenshots" type="button">Screenshots</button>
+                <button id="editor-folder" type="button">Open folder</button>
+              </div>
+              <button id="editor-delete" class="danger-action" type="button">Delete profile</button>
+            </div>
+          </details>
+        </div>
+        <section id="editor-health" class="profile-health" aria-live="polite" hidden>
+          <div class="profile-health-heading">
+            <div>
+              <span class="section-kicker">OFFLINE HEALTH</span>
+              <h3 id="editor-health-title">Checking profile…</h3>
+            </div>
+            <span id="editor-health-badge" class="profile-health-badge">CHECKING</span>
+          </div>
+          <p id="editor-health-summary" class="mod-status"></p>
+          <div class="profile-health-stats" aria-label="Profile health summary">
+            <span>
+              <b id="editor-health-verified">0</b>
+              verified files
+            </span>
+            <span>
+              <b id="editor-health-missing">0</b>
+              missing or damaged
+            </span>
+            <span>
+              <b id="editor-health-java">—</b>
+              Java
+            </span>
+          </div>
+          <ul id="editor-health-issues" class="profile-health-issues"></ul>
+          <div class="profile-health-actions">
+            <button id="editor-health-repair" type="button">Repair now</button>
+            <button id="editor-health-dismiss" class="secondary-action" type="button">
+              Dismiss
+            </button>
+          </div>
+        </section>
+        <div class="editor-grid">
+          <aside class="editor-sidebar" aria-label="Installed profile mods">
+            <div class="editor-sidebar-title">
+              <div>
+                <span class="section-kicker">THIS PROFILE</span>
+                <strong>Installed mods</strong>
+              </div>
+              <button id="editor-update" class="text-action" type="button">Update all</button>
+            </div>
+            <p id="editor-installed-status" class="mod-status" role="status">
+              Loading profile mods…
+            </p>
+            <div id="editor-installed" class="editor-installed"></div>
+          </aside>
+          <div class="editor-library">
+            <div class="editor-library-title">
+              <div>
+                <span class="section-kicker">ADD MODS</span>
+                <h3>Browse mods</h3>
+              </div>
+              <span id="editor-version" class="compatible"></span>
+            </div>
+            <form id="editor-mod-search" class="mod-search">
+              <input
+                id="editor-query"
+                type="search"
+                placeholder="Search compatible mods…"
+                aria-label="Search compatible profile mods"
+              />
+              <button>Search</button>
+            </form>
+            <p id="editor-status" class="mod-status" role="status">Loading recommendations…</p>
+            <div id="editor-recommended" class="mod-results"></div>
+            <div id="editor-results" class="mod-results" hidden></div>
+          </div>
+        </div>
+      </section>
+      <!-- Independent Fabric server profiles; host-ui.js renders live cards and console state. -->
+      <section id="hosts-view" class="control-panel page" hidden>
+        <p class="eyebrow">HOST</p>
+        <h2>Your servers</h2>
+        <p class="host-warning">Only share your server address with friends you trust.</p>
+        <div id="host-running-summary" class="host-running-summary" hidden>
+          <div>
+            <span class="section-kicker">SERVER READY</span>
+            <strong id="running-server-name">Server</strong>
+            <small id="running-server-address">Checking address…</small>
+          </div>
+          <div class="host-server-actions">
+            <button id="copy-server-address" class="secondary-action">Copy address</button>
+            <button id="stop-active-server" class="danger-action">Stop server</button>
+          </div>
+        </div>
+        <div class="host-steps">
+          <span>
+            <b>1</b>
+            Create
+          </span>
+          <span>
+            <b>2</b>
+            Start
+          </span>
+          <span>
+            <b>3</b>
+            Wait
+          </span>
+          <span>
+            <b>4</b>
+            Share invite
+          </span>
+        </div>
+        <details class="domain-guide">
+          <summary>Use your own domain</summary>
+          <div class="domain-guide-body">
+            <div>
+              <h3>Give your server an easy name</h3>
+              <p class="host-help">
+                Gleam checks public DNS and shows the records to add. It cannot change your router,
+                domain provider, or workplace network.
+              </p>
+            </div>
+            <form id="server-domain-form" class="domain-guide-form">
+              <label class="field">
+                <span>DOMAIN</span>
+                <input
+                  id="server-domain"
+                  maxlength="253"
+                  placeholder="play.example.com"
+                  autocomplete="url"
+                  required
+                />
+              </label>
+              <label class="field">
+                <span>SERVER PORT</span>
+                <input
+                  id="server-domain-port"
+                  type="number"
+                  min="1024"
+                  max="65535"
+                  value="25565"
+                  required
+                />
+              </label>
+              <button type="submit">Check DNS</button>
+            </form>
+            <p id="server-domain-status" class="mod-status" role="status"></p>
+            <div id="server-domain-results" class="domain-results"></div>
+          </div>
+        </details>
+        <div class="host-layout">
+          <div class="host-create">
+            <h3>New server</h3>
+            <p class="host-help">
+              Each server has its own world and mods. Leave the port empty and Gleam will choose
+              one.
+            </p>
+            <form id="create-server" class="new-profile-form">
+              <input id="server-name" maxlength="40" placeholder="Server name" required />
+              <div class="field host-version-field">
+                <span>MINECRAFT VERSION</span>
+                <input id="server-version" type="hidden" value="26.2" />
+                <div id="server-version-picker" class="custom-picker"></div>
+              </div>
+              <input
+                id="server-port"
+                placeholder="Auto port"
+                inputmode="numeric"
+                aria-label="Server port"
+              />
+              <label class="host-memory">
+                Memory
+                <select id="server-memory" aria-label="Server memory">
+                  <option value="2048">2 GB · low-memory</option>
+                  <option value="3072">3 GB · small server</option>
+                  <option value="4096" selected>4 GB · default</option>
+                  <option value="6144">6 GB · large modpack</option>
+                </select>
+              </label>
+              <label class="host-check">
+                <input id="server-whitelist" type="checkbox" />
+                <span>
+                  Use an approved-name list. Offline names can be copied, so only invite people you
+                  trust.
+                </span>
+              </label>
+              <label class="host-check">
+                <input id="server-eula" type="checkbox" required />
+                <span>I accept the Minecraft EULA.</span>
+              </label>
+              <button>Create</button>
+            </form>
+            <p id="server-status" class="mod-status" role="status"></p>
+            <div id="server-list"></div>
+          </div>
+          <div class="host-console">
+            <div class="host-console-heading">
+              <div>
+                <h3>Console</h3>
+                <small id="console-state">Select a server.</small>
+              </div>
+              <div class="host-console-tools">
+                <input
+                  id="server-console-search"
+                  type="search"
+                  maxlength="100"
+                  placeholder="Filter output"
+                  aria-label="Filter server console output"
+                />
+                <label class="console-follow">
+                  <input id="server-console-follow" type="checkbox" checked />
+                  <span>Follow output</span>
+                </label>
+                <button id="clear-server-console" class="text-action" type="button">Clear</button>
+              </div>
+            </div>
+            <p id="server-console-filter-status" class="console-filter-status" role="status"></p>
+            <pre id="server-console" tabindex="0" aria-label="Server console output">
+Select a server and press Start. Join when it says Ready.</pre
+            >
+            <form id="server-command-form" class="mod-search">
+              <input
+                id="server-command"
+                maxlength="500"
+                placeholder="Command, for example: say Hello"
+                autocomplete="off"
+                aria-label="Server console command"
+              />
+              <button>Send</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+    <!-- Shared dialogs stay outside individual views so they can safely overlay any page. -->
+    <dialog id="world-dialog" class="swirl-dialog wide-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">WORLDS</p>
+          <h2 id="world-dialog-title">Worlds</h2>
+        </div>
+        <div class="dialog-actions">
+          <button id="world-import" class="secondary-action" type="button">Import world</button>
+          <button id="world-dialog-close" class="secondary-action" type="button">Close</button>
+        </div>
+      </div>
+      <p id="world-dialog-status" class="mod-status" role="status"></p>
+      <div id="world-dialog-list" class="world-list"></div>
+    </dialog>
+    <section
+      id="welcome"
+      class="welcome"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="welcome-title"
+    >
+      <div class="welcome-card">
+        <img src="../../assets/gleam-logo.png" alt="" />
+        <p class="eyebrow">FIRST SETUP</p>
+        <h2 id="welcome-title">Set up your game.</h2>
+        <ol>
+          <li>Choose your player name.</li>
+          <li>Name your profile.</li>
+          <li>Choose whether to add performance mods.</li>
+        </ol>
+        <label>
+          Player name
+          <input id="welcome-name" maxlength="16" placeholder="Gleam1234" />
+        </label>
+        <label>
+          Profile name
+          <input id="welcome-profile" maxlength="50" value="Minecraft" />
+        </label>
+        <label class="host-check">
+          <input id="welcome-performance" type="checkbox" checked />
+          <span>Add performance mods</span>
+        </label>
+        <p id="welcome-status" class="mod-status" role="status"></p>
+        <div class="welcome-actions">
+          <button id="welcome-later" class="secondary-action">Later</button>
+          <button id="welcome-start" class="launch">
+            <span>Create</span>
+            <b>→</b>
+          </button>
+        </div>
+      </div>
+    </section>
+    <dialog id="backup-dialog" class="swirl-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">BACKUPS</p>
+          <h2 id="backup-dialog-title">Backups</h2>
+        </div>
+        <button id="backup-dialog-close" class="secondary-action" type="button">Close</button>
+      </div>
+      <p id="backup-dialog-status" class="mod-status"></p>
+      <div id="backup-dialog-list" class="backup-list"></div>
+    </dialog>
+    <dialog id="screenshot-dialog" class="swirl-dialog wide-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">SCREENSHOTS</p>
+          <h2 id="screenshot-dialog-title">Screenshots</h2>
+        </div>
+        <div class="dialog-actions">
+          <button id="screenshot-folder" class="secondary-action" type="button">Open folder</button>
+          <button id="screenshot-dialog-close" class="secondary-action" type="button">Close</button>
+        </div>
+      </div>
+      <p id="screenshot-dialog-status" class="mod-status" role="status"></p>
+      <div id="screenshot-dialog-list" class="screenshot-grid"></div>
+    </dialog>
+    <dialog id="server-mod-dialog" class="swirl-dialog wide-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">SERVER MODS</p>
+          <h2 id="server-mod-title">Mods</h2>
+        </div>
+        <div class="dialog-actions">
+          <button id="update-server-mods" class="secondary-action" type="button">Update all</button>
+          <button id="server-mod-close" class="secondary-action" type="button">Close</button>
+        </div>
+      </div>
+      <p id="server-mod-status" class="mod-status"></p>
+      <div id="server-installed-mods" class="mod-results"></div>
+      <form id="server-mod-search" class="mod-search">
+        <input
+          id="server-mod-query"
+          type="search"
+          maxlength="80"
+          placeholder="Search compatible server mods"
+        />
+        <button>Search</button>
+      </form>
+      <div id="server-mod-results" class="mod-results"></div>
+    </dialog>
+    <dialog id="connection-dialog" class="swirl-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">CONNECTION TEST</p>
+          <h2 id="connection-title">Server check</h2>
+        </div>
+        <button id="connection-close" class="secondary-action" type="button">Close</button>
+      </div>
+      <div id="connection-results" class="diagnostic-list"></div>
+    </dialog>
+    <dialog id="server-invite-dialog" class="swirl-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">JOIN SERVER</p>
+          <h2>Paste a Gleam invite</h2>
+        </div>
+        <button id="server-invite-close" class="secondary-action" type="button">Close</button>
+      </div>
+      <p class="mod-status">
+        Gleam creates a separate profile with the server's exact Minecraft, Fabric, and compatible
+        mod versions.
+      </p>
+      <textarea
+        id="server-invite-code"
+        class="profile-code"
+        maxlength="300000"
+        placeholder="SWIRLSERVER1..."
+      ></textarea>
+      <p id="server-invite-status" class="mod-status" role="status"></p>
+      <div class="dialog-actions">
+        <button id="server-invite-test" class="secondary-action" type="button">
+          Test connection
+        </button>
+        <button id="server-invite-import" class="launch compact-launch" type="button">
+          <span>Set up &amp; select</span>
+          <b>→</b>
+        </button>
+      </div>
+    </dialog>
+    <dialog id="server-players-dialog" class="swirl-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">PLAYERS</p>
+          <h2 id="server-players-title">Approved names</h2>
+        </div>
+        <button id="server-players-close" class="secondary-action" type="button">Close</button>
+      </div>
+      <p class="mod-status">
+        These names are not verified accounts. A person can copy an approved name.
+      </p>
+      <form id="server-player-form" class="mod-search">
+        <input id="server-player-name" maxlength="16" placeholder="Player name" required />
+        <label class="host-check">
+          <input id="server-player-op" type="checkbox" />
+          <span>Operator</span>
+        </label>
+        <button>Add</button>
+      </form>
+      <p id="server-players-status" class="mod-status" role="status"></p>
+      <div id="server-players-list" class="mod-results"></div>
+    </dialog>
+    <dialog id="server-settings-dialog" class="swirl-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">SERVER SETTINGS</p>
+          <h2 id="server-settings-title">Server settings</h2>
+        </div>
+        <button id="server-settings-close" class="secondary-action" type="button">Close</button>
+      </div>
+      <form id="server-settings-form" class="server-settings-form">
+        <label>
+          MOTD
+          <input id="server-setting-motd" maxlength="100" />
+        </label>
+        <label>
+          Maximum players
+          <input id="server-setting-max-players" type="number" min="1" max="100" />
+        </label>
+        <label>
+          Game mode
+          <select id="server-setting-gamemode">
+            <option value="survival">Survival</option>
+            <option value="creative">Creative</option>
+            <option value="adventure">Adventure</option>
+            <option value="spectator">Spectator</option>
+          </select>
+        </label>
+        <label>
+          Difficulty
+          <select id="server-setting-difficulty">
+            <option value="peaceful">Peaceful</option>
+            <option value="easy">Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+        <label>
+          View distance
+          <input id="server-setting-view" type="number" min="2" max="32" />
+        </label>
+        <label>
+          Simulation distance
+          <input id="server-setting-simulation" type="number" min="2" max="32" />
+        </label>
+        <label>
+          Automatic backups
+          <select id="server-setting-backups">
+            <option value="off">Off</option>
+            <option value="hourly">Hourly</option>
+            <option value="daily">Daily</option>
+          </select>
+          <small>
+            Scheduled backups wait until the server is stopped so the world stays consistent.
+          </small>
+        </label>
+        <label class="host-check">
+          <input id="server-setting-pvp" type="checkbox" />
+          <span>Allow PVP</span>
+        </label>
+        <label class="host-check">
+          <input id="server-setting-command-blocks" type="checkbox" />
+          <span>Enable command blocks</span>
+        </label>
+        <p id="server-settings-status" class="mod-status" role="status"></p>
+        <button class="mod-install" type="submit">Save settings</button>
+      </form>
+    </dialog>
+    <dialog id="player-identity-dialog" class="swirl-dialog">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">PLAYER IDENTITY</p>
+          <h2>Your private player key</h2>
+        </div>
+        <button id="player-identity-close" class="secondary-action" type="button">Close</button>
+      </div>
+      <p id="player-identity-summary" class="mod-status">Creating your identity…</p>
+      <code id="player-identity-fingerprint" class="identity-fingerprint"></code>
+      <p class="mod-status">
+        Servers use this fingerprint to recognize you even though Gleam has no accounts. It does not
+        reveal your real identity.
+      </p>
+      <label class="field">
+        <span>RECOVERY PASSWORD</span>
+        <input
+          id="identity-recovery-password"
+          type="password"
+          minlength="10"
+          autocomplete="new-password"
+          placeholder="At least 10 characters"
+        />
+      </label>
+      <div class="dialog-actions">
+        <button id="export-player-identity" class="secondary-action" type="button">
+          Save recovery file
+        </button>
+        <button id="import-player-identity" class="secondary-action" type="button">
+          Restore recovery file
+        </button>
+      </div>
+      <p id="identity-recovery-status" class="mod-status" role="status">
+        The private key is protected by Windows. Keep the encrypted recovery file private.
+      </p>
+    </dialog>
+    <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+    <!-- package-qa.js removes the development-only QA hook from player builds. -->
+    <script src="../../tests/smoke/qa-hooks.js"></script>
+    <script type="module" src="js/bootstrap.js"></script>
+  </body>
+</html>

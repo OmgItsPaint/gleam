@@ -1,0 +1,88 @@
+.crash-assistant {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  width: min(1320px, calc(100% - 48px));
+  margin: 20px auto 0;
+  padding: 22px;
+  border: 3px solid #9a4c8c;
+  background: #100c11;
+  box-shadow: 7px 7px 0 #241020;
+}
+.session-summary {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.65fr) minmax(0, 1.35fr);
+  gap: 18px;
+  align-items: center;
+  margin: 14px 0;
+  padding: 16px 18px;
+  border: 1px solid #6e4268;
+  background: #0c090ccf;
+}
+.session-summary h2,
+.session-summary p,
+.session-summary dl,
+.session-summary dd {
+  margin: 0;
+}
+.session-summary small,
+.session-summary dt {
+  color: #bfaabd;
+}
+.session-summary dl {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.session-summary dl > div {
+  padding: 10px;
+  border-left: 2px solid #a25b98;
+  background: #ffffff06;
+}
+.session-summary dt {
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.session-summary dd {
+  margin-top: 5px;
+  color: #fff;
+  font-size: 17px;
+}
+@media (max-width: 820px) {
+  .session-summary {
+    grid-template-columns: 1fr;
+  }
+  .session-summary dl {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.crash-assistant[hidden] {
+  display: none;
+}
+.crash-assistant h2 {
+  margin: 4px 0 8px;
+}
+.crash-assistant p:not(.eyebrow),
+.crash-assistant small {
+  color: #c7c0c8;
+}
+.crash-assistant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 9px;
+}
+.crash-assistant-actions button {
+  width: auto;
+  min-height: 44px;
+  margin: 0;
+}
+@media (max-width: 820px) {
+  .crash-assistant {
+    grid-template-columns: 1fr;
+  }
+  .crash-assistant-actions {
+    justify-content: flex-start;
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "required": [
+    "gleam-ui/index.html",
+    "gleam-ui/app.js",
+    "gleam-ui/styles.css",
+    "gleam-ui/assets/gleam-logo.png",
+    "gleam-ui/assets/gleam-wordmark.png",
+    "bundled-mods/swirl-client-26.1.2.jar",
+    "bundled-mods/swirl-client-26.2.jar",
+    "config/update-config.json"
+  ],
+  "resourceMappings": {
+    "../bundled-mods/swirl-client-26.1.2.jar": "bundled-mods/swirl-client-26.1.2.jar",
+    "../bundled-mods/swirl-client-26.2.jar": "bundled-mods/swirl-client-26.2.jar",
+    "../config/update-config.json": "config/update-config.json"
+  },
+  "forbiddenPatterns": [
+    "Swirl-support-*.json",
+    "Gleam-support-*.json",
+    "*.swirlpack",
+    "*.map",
+    "*.pem",
+    "*.pfx",
+    "*.key",
+    "tests/**",
+    "tools/**",
+    "docs/**"
+  ]
+}

@@ -25,7 +25,7 @@ jobs:
       GLEAM_PROVISIONING_METADATA: ${{ secrets.GLEAM_PROVISIONING_METADATA }}
       GLEAM_WINDOWS_PUBLISHER: ${{ secrets.WINDOWS_PUBLISHER }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@v6

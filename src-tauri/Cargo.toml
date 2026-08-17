@@ -15,7 +15,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 base64 = "0.22"
-ed25519-dalek = { version = "2", features = ["pkcs8", "pem", "rand_core"] }
+ed25519-dalek = { version = "3", features = ["pkcs8", "pem", "rand_core"] }
 hex = "0.4"
 md-5 = "0.10"
 regex = "1"
